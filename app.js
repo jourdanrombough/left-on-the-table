@@ -67,11 +67,13 @@ const status = p => !p ? "none" : p <= 3 ? "top" : p <= 10 ? "page1" : p <= 20 ?
 const COLORS = { top: "#3ee98a", page1: "#2fd0ff", close: "#ffc13b", far: "#9b8cff", none: "#141735" };
 
 /* ---------- mode / transport ---------- */
-let MODE = "demo";
+let MODE = "demo", API_BASE = "/api", LOGIN_URL = null;
+const apiUrl = (n, q) => API_BASE === "php" ? "api.php?a=" + n + (q ? "&" + q : "") : "/api/" + n + (q ? "?" + q : "");
 function getKey() { try { return JSON.parse(sessionStorage.getItem("ltt_key") || localStorage.getItem("ltt_key") || "null"); } catch (e) { return null; } }
 async function detectMode() {
   if (location.protocol.startsWith("http")) {
     try { const r = await fetch("/api/health", { cache: "no-store" }); if (r.ok) { const j = await r.json(); if (j.mode === "local") MODE = "local"; } } catch (e) { }
+    if (MODE !== "local") { try { const r = await fetch("api.php?a=health", { cache: "no-store", credentials: "same-origin" }); if (r.ok) { const j = await r.json(); if (j.mode === "local") { MODE = "local"; API_BASE = "php"; } else if (j.login) LOGIN_URL = j.login; } } catch (e) { } }
   }
   if (MODE !== "local" && getKey()) MODE = "key";
   renderMode();
@@ -81,8 +83,9 @@ function renderMode() {
   m.className = "chip " + (MODE === "demo" ? "demo" : "live");
   m.lastElementChild.textContent = MODE === "local" ? "live · local server" : MODE === "key" ? "live · your API key" : "demo · saved scans";
   $("#keyBtn").style.display = MODE === "local" ? "none" : "";
+  if (LOGIN_URL && MODE !== "local") { $("#keyBtn").textContent = "Log in to scan"; $("#keyBtn").onclick = () => location.href = LOGIN_URL; }
   $("#keyBtn").textContent = MODE === "key" ? "Key ✓" : "Add API key";
-  if (MODE === "local") fetch("/api/balance").then(r => r.json()).then(j => { if (j.balance != null) { $("#bal").style.display = ""; $("#bal").textContent = "balance $" + j.balance.toFixed(2); } }).catch(() => { });
+  if (MODE === "local") fetch(apiUrl("balance")).then(r => r.json()).then(j => { if (j.balance != null) { $("#bal").style.display = ""; $("#bal").textContent = "balance $" + j.balance.toFixed(2); } }).catch(() => { });
   updateEstimate();
   loadLists();
 }
@@ -102,7 +105,7 @@ async function call(endpoint, task, label, quiet) {
   let r;
   try {
     if (MODE === "local") {
-      r = await (await fetch("/api/dfs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, task }) })).json();
+      r = await (await fetch(apiUrl("dfs"), { credentials: "same-origin", method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, task }) })).json();
     } else if (MODE === "key") {
       const k = getKey();
       const res = await fetch(API + endpoint, { method: "POST", headers: { Authorization: "Basic " + btoa(k.login + ":" + k.pw), "Content-Type": "application/json" }, body: JSON.stringify([task]) });
@@ -160,7 +163,7 @@ async function loadLists() {
   } catch (e) { $("#examples").innerHTML = `<div class="empty">No examples found.</div>`; }
   if (MODE === "local") {
     try {
-      const rs = await (await fetch("/api/scans", { cache: "no-store" })).json();
+      const rs = await (await fetch(apiUrl("scans"), { cache: "no-store", credentials: "same-origin" })).json();
       $("#recent").innerHTML = rs.length ? rs.map(rowHTML).join("") : `<div class="empty">Scans you run are saved here.</div>`;
     } catch (e) { }
   } else { const h = localHistory(); $("#recent").innerHTML = h.length ? h.map(rowHTML).join("") : `<div class="empty">${MODE === "key" ? "Scans you run on this device are saved here." : "Connect your API key to run live scans."}</div>`; }
@@ -169,7 +172,7 @@ async function loadLists() {
 function rowHTML(s) { return `<div class="scanrow" data-file="${esc(s.file)}"><div><b>${esc(s.domain)}</b><span>${esc(s.keyword || "site keywords")} · ${esc(s.location || "")}${s.date ? " · " + esc(s.date.slice(0, 10)) : ""}</span></div><div class="pl">${s.headline ? esc(s.headline) : "▶ replay"}</div></div>`; }
 async function openFile(file, animate) {
   try {
-    const d = file.startsWith("local:") ? JSON.parse(localStorage.getItem(file.slice(6))) : await (await fetch(file, { cache: "no-store" })).json();
+    const d = file.startsWith("local:") ? JSON.parse(localStorage.getItem(file.slice(6))) : await (await fetch(API_BASE === "php" && file.startsWith("scans/") ? apiUrl("scan", "f=" + encodeURIComponent(file.slice(6))) : file, { cache: "no-store", credentials: "same-origin" })).json();
     location.hash = (animate ? "open=" : "show=") + file;
     if (animate) replay(d); else { SCAN = d; R = compute(SCAN); showResults(true); }
   } catch (e) { showErr("Couldn't open " + file); }
@@ -267,7 +270,7 @@ async function startScan() {
   SCAN.runtime = +((performance.now() - t0) / 1000).toFixed(1);
   SCAN.headline = "+" + short(scenarios(R).exp.gain) + " visits/mo possible";
   if (MODE === "key") saveLocal(SCAN);
-  if (MODE === "local") { try { const j = await (await fetch("/api/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(SCAN) })).json(); location.hash = "show=" + j.file; } catch (e) { } }
+  if (MODE === "local") { try { const j = await (await fetch(apiUrl("save"), { credentials: "same-origin", method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(SCAN) })).json(); location.hash = "show=" + j.file; } catch (e) { } }
   finishOverlay();
 }
 
@@ -1007,7 +1010,7 @@ function showResults(instant) {
   $("#pieTot").textContent = Rr.basis.local ? `${Rr.basis.n} top searches, live in ${SCAN.location.city || SCAN.location.region} · ${fmt(tot)} clicks/mo` : fmt(tot) + " organic clicks / month";
   setTimeout(() => document.querySelectorAll("#bar3 i").forEach(i => i.style.width = Math.max(0.4, +i.dataset.w) + "%"), 150);
   renderLadder();
-  renderComps(); renderSerps(); renderTopics(); renderTable("all"); renderMethod(); setTimeout(renderProjection, 80);
+  renderComps(); renderSerps(); renderTopics(); renderTable("all"); renderMethod(); renderOverview(); setTimeout(renderProjection, 80);
   setTimeout(() => UNI.init(), 60);
 }
 function countUp(sel, to, f) { tween($(sel), to, f, 1600); }
@@ -1246,22 +1249,25 @@ detectMode().then(() => {
 let SCEN = "exp";
 function scenarios(Rr) {
   const it = Rr.items;
-  const untapped = it.filter(x => !x.p || x.p > 20).sort((a, b) => ((a.d ?? 50) - (b.d ?? 50)) || (b.mkVal - a.mkVal) || (b.v - a.v));
+  const untapped = it.filter(x => !x.p || x.p > 20).sort((a, b) => ((a.d ?? 50) - (b.d ?? 50)) || (b.mk - a.mk) || (b.v - a.v));
   const pick = f => new Set(untapped.slice(0, Math.round(untapped.length * f)).map(x => x.i));
+  const packable = it.filter(x => x.lp && !x.pk).sort((a, b) => b.v - a.v);
+  const packPick = f => new Set(packable.slice(0, Math.round(packable.length * f)).map(x => x.i));
+  const loc = Rr.basis && Rr.basis.local;
   const defs = {
-    cons: { name: "Conservative", note: "Pages already ranking 4–20 move about halfway up. No new rankings.", mid: 5, mv: p => p > 3 && p <= 20 ? Math.max(3, Math.round(p / 2)) : p, set: new Set(), np: 0 },
-    exp: { name: "Expected", note: "Striking-distance pages (4–20) reach #3, and the easiest 30% of untapped searches reach page one at #7.", mid: 6, mv: p => p > 3 && p <= 20 ? 3 : p, set: pick(.3), np: 7 },
-    agg: { name: "Aggressive", note: "Top-3 pages reach #1, everything else ranking 4–20 reaches #2, the easiest half of untapped searches reach #4" + (Rr.basis && Rr.basis.local ? ", and you win a map-pack spot on the live-checked searches." : "."), mid: 7, mv: p => p <= 3 ? 1 : p <= 20 ? 2 : p, set: pick(.5), np: 4 },
+    cons: { name: "Conservative", note: "Pages already ranking 4–20 move about halfway up. No new rankings.", mid: 5, mv: p => p > 3 && p <= 20 ? Math.max(3, Math.round(p / 2)) : p, set: new Set(), np: 0, pk: new Set() },
+    exp: { name: "Expected", note: "Striking-distance pages (4–20) reach #3, the easiest 40% of untapped searches reach page one at #5" + (loc ? ", and you win a map-pack spot on a third of the live-checked searches." : "."), mid: 6, mv: p => p > 3 && p <= 20 ? 3 : p, set: pick(.4), np: 5, pk: packPick(1 / 3) },
+    agg: { name: "Aggressive", note: "Top-3 pages reach #1, everything else ranking 4–20 reaches #2, the easiest half of untapped searches reach #4" + (loc ? ", and you win a map-pack spot on every live-checked search." : "."), mid: 7, mv: p => p <= 3 ? 1 : p <= 20 ? 2 : p, set: pick(.5), np: 4, pk: packPick(1) },
   };
   Object.values(defs).forEach(s => {
-    let pc = 0, pv = 0, pn = 0, nc = 0, nv = 0, nn = 0;
+    s.pos = x => x.p && x.p <= 20 ? s.mv(x.p) : s.set.has(x.i) ? s.np : x.p;
+    let pc = 0, pv = 0, pn = 0, nc = 0, nv = 0, nn = 0, mc = 0, mv = 0, mn = 0;
     it.forEach(x => {
       if (x.p && x.p <= 20) { const g = x.v * x.f * (ctr(s.mv(x.p)) - ctr(x.p)); if (g > 0) { pc += g; pv += g * (x.c || 0); pn++; } }
       else if (s.set.has(x.i)) { const g = x.v * x.f * (ctr(s.np) - ctr(x.p)); if (g > 0) { nc += g; nv += g * (x.c || 0); nn++; } }
+      if (s.pk.has(x.i)) { const g = x.v * PACK[2]; mc += g; mv += g * (x.c || 0); mn++; }
     });
     const L = m => 1 / (1 + Math.exp(-(m - s.mid) / 1.6)), r = m => (L(m) - L(0)) / (L(12) - L(0));
-    let mc = 0, mv = 0, mn = 0;
-    if (s.name === "Aggressive") it.forEach(x => { if (x.lp && !x.pk) { const g = x.v * PACK[2]; mc += g; mv += g * (x.c || 0); mn++; } });
     Object.assign(s, { push: { clicks: pc, value: pv, n: pn }, win: { clicks: nc, value: nv, n: nn }, map: { clicks: mc, value: mv, n: mn }, gain: pc + nc + mc, gainVal: pv + nv + mv });
     s.months = [...Array(13)].map((_, m) => ({ m, clicks: Rr.you.clicks + s.gain * r(m), value: Rr.you.value + s.gainVal * r(m) }));
   });
@@ -1362,4 +1368,44 @@ function renderLadder() {
   const max = Math.max(...rows.map(r => r.v), 1);
   $("#ladder").innerHTML = rows.map(r => `<div class="lrow"><div class="lb">${r.l}<span>${esc(r.s)}</span></div><div class="tr2"><i style="background:${r.c}" data-w="${Math.max(0.6, 100 * r.v / max)}"></i></div><div class="vv">${fmt(r.v)}<span>${r.val ? money(r.val) + "/mo" : "visits/mo"}</span></div></div>`).join("");
   setTimeout(() => document.querySelectorAll("#ladder i").forEach((i, j) => setTimeout(() => i.style.width = i.dataset.w + "%", j * 250)), 200);
+}
+
+/* ---------- today vs. what you could be ---------- */
+function simulate(Rr, posFn, packSet) {
+  let clicks = 0, value = 0, kw3 = 0, kw10 = 0; const tClicks = {};
+  Rr.items.forEach(x => {
+    const p = posFn ? posFn(x) : x.p, pk = x.pk || (packSet && packSet.has(x.i));
+    const c = x.v * (ctr(p) * x.f + (x.pk ? PACK[x.pk - 1] : pk ? PACK[2] : 0));
+    clicks += c; value += c * (x.c || 0); if (p && p <= 3) kw3++; if (p && p <= 10) kw10++;
+    tClicks[x.topic] = (tClicks[x.topic] || 0) + c;
+  });
+  const led = Rr.topics.filter(t => (tClicks[t.name] || 0) > (t.lead ? t.lead.clicks : 0) && (tClicks[t.name] || 0) > 0).length;
+  const bp = Rr.basis.local && Rr.market.clicks ? Math.max(.05, Rr.basis.clicks / Rr.market.clicks) : 1;
+  const rank = Rr.comps.filter(c => c.clicks / bp > clicks).length + 1;
+  return { clicks, value, kw3, kw10, led, rank, share: Rr.market.clicks ? clicks / Rr.market.clicks : 0 };
+}
+function renderOverview() {
+  const Rr = R, sc = scenarios(Rr).exp;
+  const now = simulate(Rr), exp = simulate(Rr, sc.pos, sc.pk), full = simulate(Rr, x => (x.p && x.p <= 3) ? x.p : 2, new Set(Rr.items.filter(x => x.lp).map(x => x.i)));
+  const cols = [
+    { k: "now", t: "Today", s: SCAN.domain, c: "var(--green)", g: "62,233,138", d: now },
+    { k: "exp", t: "In 12 months", s: "expected scenario", c: "var(--gold)", g: "255,193,59", d: exp },
+    { k: "full", t: "Full potential", s: "top 3 on every search", c: "var(--pink)", g: "255,79,168", d: full },
+  ];
+  const nt = Rr.topics.length, nComp = Rr.comps.length + 1;
+  const rows = [
+    ["Visits / month", d => fmt(d.clicks), d => d.clicks, true],
+    ["Share of the market", d => (d.share * 100).toFixed(d.share < .1 ? 1 : 0) + "%", d => d.share],
+    ["Searches in the top 3", d => fmt(d.kw3), d => d.kw3],
+    ["Searches on page one", d => fmt(d.kw10), d => d.kw10],
+    ["Keyword groups you lead", d => `${d.led} of ${nt}`, d => d.led],
+    ["Rank vs. competitors", d => d.rank > nComp - 1 ? "outside top " + (nComp - 1) : "#" + d.rank, d => 1 / d.rank],
+    ["Click value / month", d => money(d.value), d => d.value],
+  ];
+  $("#ovr").innerHTML = `<div class="ovr-grid">${cols.map((c, j) => `<div class="ovc" style="--c:${c.c};--g:${c.g};animation-delay:${j * .15}s"><div class="ovh"><b>${c.t}</b><span>${esc(c.s)}</span></div>${rows.map(([l, f, v, big]) => {
+    const mx = Math.max(...cols.map(q => v(q.d))) || 1;
+    return `<div class="ovr-row ${big ? "big" : ""}"><span class="l">${l}</span><span class="v">${f(c.d)}</span><i data-w="${Math.max(2, 100 * v(c.d) / mx)}"></i></div>`;
+  }).join("")}</div>`).join("")}</div>
+  <div class="ovr-band"><div><b>${fmt(Math.max(0, exp.clicks - now.clicks))}</b><span>more visits a month within a year</span></div><div><b>${exp.kw3 - now.kw3 >= 0 ? "+" : ""}${fmt(exp.kw3 - now.kw3)}</b><span>new top-3 rankings</span></div><div><b>${fmt(Math.max(0, full.clicks - exp.clicks))}</b><span>more visits still open after that</span></div><div><b>${sc.months[12].clicks && now.clicks ? (sc.months[12].clicks / Math.max(1, now.clicks)).toFixed(1) + "×" : "+" + fmt(sc.gain)}</b><span>${now.clicks ? "today's traffic in 12 months" : "visits from a standing start"}</span></div></div>`;
+  setTimeout(() => document.querySelectorAll("#ovr .ovr-row i").forEach(i => i.style.width = i.dataset.w + "%"), 200);
 }

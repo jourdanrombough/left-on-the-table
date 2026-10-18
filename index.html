@@ -208,6 +208,25 @@ h1 .g{color:var(--gold);text-shadow:0 0 40px rgba(255,193,59,.35)}
 .modal .f{margin-bottom:12px}
 .err{background:rgba(255,93,108,.1);border:1px solid rgba(255,93,108,.4);color:#ffc2ca;border-radius:12px;padding:12px 14px;margin-top:14px;display:none}
 
+
+/* overview */
+.ovsec{position:relative}
+.ovr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.ovc{position:relative;border-radius:18px;padding:18px 20px;background:linear-gradient(165deg,rgba(var(--g),.16),rgba(17,19,42,.95) 55%);border:1px solid rgba(var(--g),.45);overflow:hidden;animation:ovIn .7s both}
+.ovc:before{content:"";position:absolute;right:-70px;top:-70px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(var(--g),.28),transparent 70%)}
+@keyframes ovIn{from{opacity:0;transform:translateY(16px)}}
+.ovh b{display:block;font:800 19px var(--disp);color:var(--c)}.ovh span{font:500 12px var(--mono);color:var(--muted)}
+.ovh{margin-bottom:12px;position:relative}
+.ovr-row{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.ovr-row:last-child{border:0}
+.ovr-row .l{font-size:13px;color:var(--ink2)}.ovr-row .v{font:700 15px var(--mono);color:var(--ink)}
+.ovr-row.big .v{font:800 26px var(--disp);color:var(--c)}
+.ovr-row i{position:absolute;left:0;bottom:4px;height:3px;width:0;border-radius:3px;background:var(--c);opacity:.85;transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.ovr-band{margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;border-radius:16px;padding:16px;background:linear-gradient(90deg,rgba(62,233,138,.14),rgba(255,193,59,.14) 35%,rgba(255,79,168,.14) 70%,rgba(155,140,255,.14));border:1px solid var(--line2)}
+.ovr-band b{display:block;font:800 24px var(--disp);background:linear-gradient(90deg,var(--gold),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ovr-band span{font-size:12.5px;color:var(--ink2)}
+.note{border:1px solid var(--line2)!important;border-radius:16px;padding:16px 18px!important;background:linear-gradient(135deg,rgba(47,208,255,.07),rgba(155,140,255,.07) 50%,rgba(255,79,168,.07));color:var(--muted)!important}
+@media(max-width:1000px){.ovr-grid{grid-template-columns:1fr}.ovr-band{grid-template-columns:1fr 1fr}}
 /* ai box */
 .aibox{padding:18px 20px;margin:0 0 16px;border-color:rgba(155,140,255,.45);background:linear-gradient(160deg,rgba(155,140,255,.10),var(--panel) 60%)}
 .aibox .ah{display:flex;align-items:center;gap:10px;font:700 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--violet)}
@@ -407,6 +426,7 @@ input[type=range]{width:100%;margin-top:10px;accent-color:#ffc13b;height:28px}
     <div class="tabs seg" id="oTabs"><button class="on" data-v="all">All opportunities</button><button data-v="close">Striking distance</button><button data-v="none">Not ranking yet</button><button data-v="mine">Your top-3 wins</button></div>
     <div class="card tblwrap"><table class="tbl" id="oTable"></table></div></div>
 
+  <div class="sec ovsec"><div class="eyebrow" style="color:var(--pink)">The overview</div><h3>What you have today, and what you could have</h3><p class="ld">Same market, three snapshots. Every number comes from the click-through curve applied to the searches above.</p><div id="ovr"></div></div>
   <div class="note" id="method"></div>
 </div></section>
 

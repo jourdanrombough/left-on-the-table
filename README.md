@@ -50,6 +50,17 @@ The example scans replay without an API key. To scan any domain live, tap **Add 
 
 These are estimates for sizing an opportunity, not guarantees.
 
+## Host it on your own site (WordPress or any PHP host)
+
+Upload `index.html`, `app.js`, `api.php`, `manifest.json`, the icons and `examples/` to a folder such as
+`yoursite.com/left-on-the-table/`. `api.php` does the same job as the local server:
+
+- It reads your DataForSEO login from `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` constants (add them to `wp-config.php`),
+  environment variables, or an `ltt-config.php` file (see `ltt-config.sample.php`). The password never reaches the browser.
+- On WordPress, live scans only run when you're logged in as an administrator. Everyone else can replay the examples.
+  Outside WordPress, set `access_password` in `ltt-config.php`.
+- Scans and the 7-day response cache are saved in `ltt-data/`, which is locked with `.htaccess`.
+
 ## Run it on your own machine
 
 The safest setup keeps your API password off the browser entirely:

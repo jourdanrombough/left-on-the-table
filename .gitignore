@@ -4,3 +4,5 @@ scans/
 __pycache__/
 .DS_Store
 server.log
+ltt-config.php
+ltt-data/
