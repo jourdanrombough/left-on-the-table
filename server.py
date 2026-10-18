@@ -23,6 +23,8 @@ ALLOWED = {
     "dataforseo_labs/google/serp_competitors/live",
     "keywords_data/google_ads/search_volume/live",
     "serp/google/organic/live/advanced",
+    "ai_optimization/claude/llm_responses/live",
+    "ai_optimization/chat_gpt/llm_responses/live",
 }
 AUTH = None
 LOCK = threading.Lock()
@@ -38,6 +40,13 @@ def load_env(path):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
     login, pw = os.environ.get("DATAFORSEO_LOGIN"), os.environ.get("DATAFORSEO_PASSWORD")
+    if not (login and pw) and os.path.exists(path):
+        # also accept a file with just the login and password on two lines, or "login:password"
+        bare = [l.strip().strip('"').strip("'") for l in open(path) if l.strip() and not l.strip().startswith("#") and "=" not in l]
+        if len(bare) >= 2:
+            login, pw = bare[0], bare[1]
+        elif len(bare) == 1 and ":" in bare[0]:
+            login, pw = bare[0].split(":", 1)
     if not (login and pw):
         raise SystemExit("No DataForSEO credentials found. Put DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in " + path)
     return "Basic " + base64.b64encode(f"{login}:{pw}".encode()).decode()

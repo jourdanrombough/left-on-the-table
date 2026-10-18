@@ -64,7 +64,7 @@ const SUM10 = CTR.reduce((a, b) => a + b, 0);
 const TOP3 = (CTR[1] + CTR[2] + CTR[3]) / 3;
 const ctr = p => !p ? 0 : p <= 10 ? CTR[p] : p <= 20 ? .006 : 0;
 const status = p => !p ? "none" : p <= 3 ? "top" : p <= 10 ? "page1" : p <= 20 ? "close" : "far";
-const COLORS = { top: "#3ee08f", page1: "#2bb5a0", close: "#fbbf24", far: "#a78bfa", none: "#16202f" };
+const COLORS = { top: "#3ee98a", page1: "#2fd0ff", close: "#ffc13b", far: "#9b8cff", none: "#141735" };
 
 /* ---------- mode / transport ---------- */
 let MODE = "demo";
@@ -97,7 +97,7 @@ function saveKey() {
 function clearKey() { try { sessionStorage.removeItem("ltt_key"); localStorage.removeItem("ltt_key"); } catch (e) { } closeKey(); if (MODE === "key") { MODE = "demo"; renderMode(); } }
 
 let SCAN = null, R = null, REPLAY = false, SPEED = 1, SKIP = false, STEP = null;
-async function call(endpoint, task, label) {
+async function call(endpoint, task, label, quiet) {
   const t0 = performance.now();
   let r;
   try {
@@ -113,9 +113,9 @@ async function call(endpoint, task, label) {
   const secs = (performance.now() - t0) / 1000;
   SCAN.cost += r.cost || 0;
   SCAN.calls.push({ label, endpoint, cost: r.cost || 0, secs: +secs.toFixed(2), cached: !!r.cached, ok: r.status_code === 20000 });
-  log("→ " + label + "  " + (r.cached ? "cached" : "$" + (r.cost || 0).toFixed(4)) + " · " + secs.toFixed(1) + "s", "c");
+  if (!quiet) log("→ " + label + "  " + (r.cached ? "cached" : "$" + (r.cost || 0).toFixed(4)) + " · " + secs.toFixed(1) + "s", "c");
   $("#scCost").textContent = "$" + SCAN.cost.toFixed(3);
-  if (r.status_code !== 20000) { log("  " + (r.status_message || "error"), "e"); return null; }
+  if (r.status_code !== 20000) { if (!quiet) log("  " + (r.status_message || "error"), "e"); return null; }
   return r.result;
 }
 
@@ -146,11 +146,10 @@ function readLocation() {
 function updateEstimate() {
   const kw = $("#inKw").value.trim(), loc = readLocation();
   const seeds = kw ? kw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3) : [];
-  let c = 0.012 + 0.082 + 0.08;
-  c += seeds.length ? seeds.length * (0.042 + 0.042 + (loc.region ? 0.05 : 0)) : 0.082;
-  if (loc.region) c += 0.09 + 0.03;
+  let c = 0.025 + 0.035 + 0.05 + (seeds.length ? 0.22 : 0.17);
+  if (loc.region) c += 0.09 + 0.08 + 0.03;
   const live = MODE !== "demo";
-  $("#est").innerHTML = `<span>⏱ <b>about ${loc.region ? 60 : 40} seconds</b></span><span>≈ <b>$${c.toFixed(2)}</b> in DataForSEO credits</span><span>${seeds.length ? `market: <b>${esc(seeds.join(", "))}</b>` : "market: <b>keywords related to the site</b>"}${loc.region ? ` · volumes for <b>${esc(loc.region)}</b>` : ""}</span>` + (live ? "" : `<span style="color:var(--gold)">Live scans need the local server or your API key. Try an example below.</span>`);
+  $("#est").innerHTML = `<span>⏱ <b>about ${loc.region ? 90 : 60} seconds</b> · AI-guided</span><span>≈ <b>$${c.toFixed(2)}</b> in DataForSEO credits</span><span>${seeds.length ? `market: <b>${esc(seeds.join(", "))}</b>` : "market: <b>keywords related to the site</b>"}${loc.region ? ` · volumes for <b>${esc(loc.region)}</b>` : ""}</span>` + (live ? "" : `<span style="color:var(--gold)">Live scans need the local server or your API key. Try an example below.</span>`);
 }
 
 /* ---------- lists ---------- */
@@ -178,25 +177,45 @@ async function openFile(file, animate) {
 function showErr(m) { const e = $("#err"); e.textContent = m; e.style.display = m ? "block" : "none"; }
 
 /* ---------- pipeline ---------- */
+/* ---------- AI (runs through DataForSEO's LLM endpoint: no extra key needed) ---------- */
+const AI_EP = "ai_optimization/claude/llm_responses/live", AI_MODEL = "claude-haiku-4-5";
+const AI_EP2 = "ai_optimization/chat_gpt/llm_responses/live", AI_MODEL2 = "gpt-5.4-mini";
+async function ai(system, user, label, quiet) {
+  const task = m => ({ system_message: system.slice(0, 500), user_prompt: user.slice(0, 500), model_name: m, web_search: false });
+  let r = await call(AI_EP, task(AI_MODEL), label, quiet);
+  if (!r) r = await call(AI_EP2, task(AI_MODEL2), label + " (backup model)", quiet);
+  let txt = ""; (r?.[0]?.items || []).forEach(it => (it.sections || []).forEach(s => { if (s.type === "text") txt += s.text || ""; }));
+  const m = txt.match(/\{[\s\S]*\}/); if (!m) return null;
+  try { return JSON.parse(m[0]); } catch (e) { try { return JSON.parse(m[0].replace(/,\s*([}\]])/g, "$1")); } catch (e2) { return null; } }
+}
+async function pool(jobs, n) { const out = new Array(jobs.length); let i = 0; await Promise.all([...Array(Math.min(n, jobs.length))].map(async () => { while (i < jobs.length) { const j = i++; out[j] = await jobs[j](); } })); return out; }
+function packLines(items, fmtLine, max = 490) { const out = []; let cur = [], len = 0; items.forEach((x, j) => { const l = fmtLine(x, cur.length + 1) + "\n"; if (len + l.length > max && cur.length) { out.push(cur); cur = []; len = 0; } cur.push(x); len += (fmtLine(x, cur.length) + "\n").length; }); if (cur.length) out.push(cur); return out; }
+
+/* ---------- pipeline ---------- */
 const STEPS = [
-  { id: "foot", label: "Your footprint", head: () => "Measuring your current search footprint" },
-  { id: "market", label: "Market map", head: () => "Mapping every search in your market" },
-  { id: "local", label: "Local demand", head: () => `Sizing local demand in ${SCAN.location.region}` },
-  { id: "comp", label: "Competitors", head: () => "Finding who owns the market" },
-  { id: "serp", label: "Live results", head: () => `Checking live Google results in ${SCAN.location.city || SCAN.location.region}` },
-  { id: "table", label: "On the table", head: () => "Counting what's left on the table" },
+  { id: "foot", label: "Footprint", min: 4, head: () => "Measuring the site's current search footprint" },
+  { id: "brain", label: "AI · business", min: 5, ai: true, head: () => "AI is reading the site to understand the business" },
+  { id: "market", label: "Market map", min: 5, head: () => `Mapping every search across ${(SCAN.aiSeeds || SCAN.seeds || []).length || "the"} service${(SCAN.aiSeeds || SCAN.seeds || []).length === 1 ? "" : "s"}` },
+  { id: "filter", label: "AI · relevance", min: 6, ai: true, head: () => "AI is checking every search for relevance" },
+  { id: "local", label: "Local demand", min: 3, local: true, head: () => `Sizing local demand in ${SCAN.location.region}` },
+  { id: "comp", label: "Competitors", min: 5, head: () => "Finding who owns the market" },
+  { id: "serp", label: "Live results", min: 4, local: true, head: () => `Checking live Google results in ${SCAN.location.city || SCAN.location.region}` },
+  { id: "gap", label: "The gap", min: 7, head: () => "Computing the traffic competitors take from you" },
+  { id: "proj", label: "Projection", min: 6, head: () => "Projecting the next 12 months" },
 ];
-function activeSteps() { return STEPS.filter(s => SCAN.location.region || (s.id !== "local" && s.id !== "serp")); }
+function activeSteps() { return STEPS.filter(s => (!s.local || SCAN.location.region) && (!s.ai || !REPLAY || SCAN.ai)); }
 function stepUI(id) {
   STEP = id;
   const st = activeSteps(), i = st.findIndex(s => s.id === id);
-  $("#scSteps").innerHTML = st.map((s, j) => `<div class="${j < i ? "done" : j === i ? "on" : ""}">${String(j + 1).padStart(2, "0")} · ${s.label}</div>`).join("");
-  $("#scEye").textContent = `step ${i + 1} of ${st.length}`;
+  $("#scSteps").style.gridTemplateColumns = `repeat(${st.length},minmax(0,1fr))`;
+  $("#scSteps").innerHTML = st.map((s, j) => `<div class="${j < i ? "done" : j === i ? "on" : ""}${s.ai ? " ai" : ""}">${String(j + 1).padStart(2, "0")} · ${s.label}</div>`).join("");
+  $("#scEye").innerHTML = `step ${i + 1} of ${st.length}${st[i].ai ? ' · <span style="color:var(--violet)">AI</span>' : ""}`;
   $("#scHead").textContent = st[i].head();
   log(st[i].head(), "s", false);
 }
 
 const GENERIC = new Set("a an the of for in on to and or is are was be my me near nearby best top cheap cheapest affordable local free how what who when where why which can do does should i you your vs versus with without from by at about lawyer lawyers attorney attorneys law firm firms company companies service services online cost costs price prices pricing 2023 2024 2025 2026 2027 good great reviews review rated number phone open now hours".split(" "));
+
 const TOPIC_OK = new Set(["company", "companies", "service", "services", "local", "online", "agency", "agencies"]);
 const toks = k => k.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean);
 const SYN = { attorney: "lawyer", attorneys: "lawyer", lawyers: "lawyer", firms: "firm" };
@@ -229,7 +248,7 @@ async function startScan() {
   if (MODE === "demo") { openKey(); return showErr("Live scans need the local server (python3 server.py) or your DataForSEO API key."); }
   const kw = $("#inKw").value.trim().toLowerCase();
   const seeds = kw ? kw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3) : [];
-  SCAN = { v: 1, domain, keyword: seeds.join(", "), seeds, location: readLocation(), date: new Date().toISOString(), cost: 0, calls: [], log: [], durations: {}, overview: null, ranked: [], universe: [], comps: [], youPos: {}, serps: [] };
+  SCAN = { v: 2, domain, keyword: seeds.join(", "), seeds, location: readLocation(), date: new Date().toISOString(), cost: 0, calls: [], log: [], durations: {}, overview: null, ranked: [], universe: [], comps: [], youPos: {}, serps: [], dropped: [] };
   REPLAY = false; SKIP = false; SPEED = 1;
   openOverlay();
   const t0 = performance.now();
@@ -238,16 +257,25 @@ async function startScan() {
       const ts = performance.now();
       stepUI(s.id);
       await RUN[s.id]();
+      const el = performance.now() - ts;
+      if (el < s.min * 1000) await sleep(s.min * 1000 - el);
       SCAN.durations[s.id] = +((performance.now() - ts) / 1000).toFixed(2);
       if (s.id === "foot" && !SCAN.ranked.length && !SCAN.overview) throw new Error("No data came back for " + domain + ". Check the domain and your API connection.");
-      if (s.id === "market" && !SCAN.universe.length) throw new Error("Couldn't find keywords for this market. Try adding a target keyword.");
+      if ((s.id === "market" || s.id === "filter") && !SCAN.universe.length) throw new Error("Couldn't find relevant searches for this market. Try a different target keyword.");
     }
-  } catch (e) { log("✗ " + e.message, "e"); await sleep(1800); closeOverlay(); showErr(e.message); return; }
+  } catch (e) { console.error(e); log("✗ " + e.message, "e"); await sleep(1800); closeOverlay(); showErr(e.message); return; }
   SCAN.runtime = +((performance.now() - t0) / 1000).toFixed(1);
-  SCAN.headline = money(R.table.value) + "/mo on the table";
+  SCAN.headline = "+" + short(scenarios(R).exp.gain) + " visits/mo possible";
   if (MODE === "key") saveLocal(SCAN);
   if (MODE === "local") { try { const j = await (await fetch("/api/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(SCAN) })).json(); location.hash = "show=" + j.file; } catch (e) { } }
   finishOverlay();
+}
+
+function parseKw(map, k, info, props, intent, seed) {
+  k = (k || "").toLowerCase().trim(); if (!k || !info || JUNK.test(k) || intent === "navigational") return 0;
+  const v = info.search_volume || 0; if (v < 10) return 0;
+  if (!map[k] || v > map[k].v) map[k] = { k, v, c: +(info.cpc || 0).toFixed(2), d: props?.keyword_difficulty ?? null, i: intent || null, s: seed };
+  return 1;
 }
 
 const RUN = {
@@ -268,51 +296,93 @@ const RUN = {
     log(`✓ ${fmt(S.overview.count)} keywords ranking · ~${fmt(S.overview.etv)} visits/mo · ${S.overview.top3} in the top 3`, "ok");
     VIZ.foot();
   },
+  async brain() {
+    const S = SCAN;
+    const top = S.ranked.slice().sort((a, b) => b.v - a.v).slice(0, 16).map(r => r.k);
+    const sys = 'You are an SEO strategist. From a domain, its top ranking searches and an optional target, infer the business and what its buyers search for. Reply ONLY JSON: {"biz":"10 words max","services":["4 to 6 short buyer search phrases in the same market as the target, no place names"],"exclude":["up to 5 off-topic themes"]}';
+    let u = `domain: ${S.domain}\n${S.keyword ? "target: " + S.keyword + "\n" : ""}${S.location.region ? "state: " + S.location.region + "\n" : ""}ranks for: `;
+    for (const k of top) { if ((u + k + "; ").length > 495) break; u += k + "; "; }
+    VIZ.brain(top);
+    const j = await ai(sys, u, "AI: understand the business");
+    const services = (Array.isArray(j?.services) ? j.services : []).map(x => String(x).toLowerCase().replace(/[^a-z0-9 '&-]/g, "").trim()).filter(x => x && x.length < 60).slice(0, 6);
+    S.ai = { biz: String(j?.biz || "").slice(0, 90), services, exclude: (Array.isArray(j?.exclude) ? j.exclude : []).slice(0, 5).map(String), model: AI_MODEL };
+    const seeds = [...S.seeds];
+    services.forEach(x => { if (!seeds.some(s => sig(s) === sig(x)) && seeds.length < 6) seeds.push(x); });
+    S.aiSeeds = seeds;
+    if (S.ai.biz) log(`✓ ${S.ai.biz}`, "ok"); else log("  AI couldn't read the business; using rules only", "w");
+    if (services.length) log(`✓ AI will also map: ${services.join(" · ")}`, "ok");
+    VIZ.brainDone();
+  },
   async market() {
-    const S = SCAN, L = { location_code: S.location.code, language_code: LANG }, jobs = [];
+    const S = SCAN, L = { location_code: S.location.code, language_code: LANG }, jobs = [], labels = [];
+    const seeds = (S.aiSeeds && S.aiSeeds.length ? S.aiSeeds : S.seeds).slice(0, 6);
     const sugg = (kw, limit, lab) => call(EP.suggest, { keyword: kw, ...L, limit, include_seed_keyword: true, ignore_synonyms: true, order_by: ["keyword_info.search_volume,desc"], filters: [["keyword_info.search_volume", ">", 0]] }, lab);
-    if (S.seeds.length) {
-      S.seeds.forEach(s => {
-        jobs.push(sugg(s, 300, "Keyword suggestions: " + s));
-        jobs.push(call(EP.related, { keyword: s, ...L, depth: 3, limit: 400, ignore_synonyms: true, filters: [["keyword_data.keyword_info.search_volume", ">", 0]] }, "Related searches: " + s));
-        if (S.location.region) {
-          jobs.push(sugg(s + " " + S.location.region.toLowerCase(), 150, `Suggestions: ${s} ${S.location.region.toLowerCase()}`));
-          jobs.push(sugg(s + " " + S.location.abbr.toLowerCase(), 100, `Suggestions: ${s} ${S.location.abbr.toLowerCase()}`));
-        }
-      });
-    } else jobs.push(call(EP.forSite, { target: S.domain, ...L, limit: 700, filters: [["keyword_info.search_volume", ">", 10]] }, "Keywords relevant to the site"));
-    const res = await Promise.all(jobs);
-    const map = {};
-    const add = (k, info, props, intent) => {
-      k = (k || "").toLowerCase().trim(); if (!k || !info || JUNK.test(k) || intent === "navigational") return;
-      const v = info.search_volume || 0; if (v < 10) return;
-      if (!map[k] || v > map[k].v) map[k] = { k, v, c: +(info.cpc || 0).toFixed(2), d: props?.keyword_difficulty ?? null, i: intent || null };
-    };
-    res.forEach(r => {
-      const r0 = r?.[0]; if (!r0) return;
-      if (r0.seed_keyword_data) add(r0.seed_keyword_data.keyword, r0.seed_keyword_data.keyword_info, r0.seed_keyword_data.keyword_properties, r0.seed_keyword_data.search_intent_info?.main_intent);
-      (r0.items || []).forEach(it => {
-        const x = it.keyword_data || it;
-        add(x.keyword, x.keyword_info, x.keyword_properties, x.search_intent_info?.main_intent);
-      });
+    seeds.forEach((s, n) => {
+      const main = S.seeds.includes(s);
+      jobs.push(sugg(s, main ? 250 : 120, "Suggestions: " + s)); labels.push(s);
+      jobs.push(call(EP.related, { keyword: s, ...L, depth: main ? 3 : 2, limit: main ? 300 : 120, ignore_synonyms: true, filters: [["keyword_data.keyword_info.search_volume", ">", 0]] }, "Related searches: " + s)); labels.push(s);
+      if (main && S.location.region) {
+        jobs.push(sugg(s + " " + S.location.region.toLowerCase(), 150, `Suggestions: ${s} ${S.location.region.toLowerCase()}`)); labels.push(s);
+        jobs.push(sugg(s + " " + S.location.abbr.toLowerCase(), 100, `Suggestions: ${s} ${S.location.abbr.toLowerCase()}`)); labels.push(s);
+      }
     });
-    const core = new Set(S.seeds.flatMap(toks).filter(t => !GENERIC.has(t) && !GEO_TOKENS.has(t)));
+    if (!S.seeds.length) { jobs.push(call(EP.forSite, { target: S.domain, ...L, limit: 300, filters: [["keyword_info.search_volume", ">", 10]] }, "Keywords relevant to the site")); labels.push(S.domain); }
+    VIZ.market(seeds.length ? seeds : [S.domain]);
+    const res = await Promise.all(jobs);
+    const map = {}; S.seedCounts = {};
+    res.forEach((r, j) => {
+      const r0 = r?.[0]; if (!r0) return; let n = 0; const sd = labels[j];
+      if (r0.seed_keyword_data) n += parseKw(map, r0.seed_keyword_data.keyword, r0.seed_keyword_data.keyword_info, r0.seed_keyword_data.keyword_properties, r0.seed_keyword_data.search_intent_info?.main_intent, sd);
+      (r0.items || []).forEach(it => { const x = it.keyword_data || it; n += parseKw(map, x.keyword, x.keyword_info, x.keyword_properties, x.search_intent_info?.main_intent, sd); });
+      S.seedCounts[sd] = (S.seedCounts[sd] || 0) + n;
+    });
+    const core = new Set(seeds.flatMap(toks).filter(t => !GENERIC.has(t) && !GEO_TOKENS.has(t)));
     S.ranked.forEach(r => {
       if (r.v < 10) return;
       if (S.seeds.length && !toks(r.k).some(t => core.has(t))) return;
-      if (!map[r.k]) map[r.k] = { k: r.k, v: r.v, c: r.c, d: r.d, i: null };
+      if (!map[r.k]) map[r.k] = { k: r.k, v: r.v, c: r.c, d: r.d, i: null, s: "your rankings" };
     });
-    const geo = geoFilter(S.location, S.seeds);
+    const geo = geoFilter(S.location, seeds);
     let U = Object.values(map).filter(u => geo(u.k));
+    S.geoDropped = Object.keys(map).length - U.length;
     const before = U.length;
     U = mergeClusters(U, S.location.region ? 1e12 : 200);
     S.merged = before - U.length;
     U.sort((a, b) => b.v - a.v);
     S.universe = U.slice(0, 900);
-    S.geoDropped = Object.keys(map).length - U.length;
     fillCpc(S.universe);
     log(`✓ ${fmt(S.universe.length)} distinct searches · ${fmt(S.universe.reduce((a, u) => a + u.v, 0))} searches/mo` + (S.merged ? ` · ${S.merged} duplicate variants merged` : "") + (S.geoDropped ? ` · ${S.geoDropped} other-location searches removed` : ""), "ok");
-    VIZ.market();
+    VIZ.marketDone();
+  },
+  async filter() {
+    const S = SCAN, A = S.ai || {};
+    if (!A.biz) { log("  AI unavailable, keeping rule-based filters", "w"); return; }
+    const svc = (A.services || []).join(", ").slice(0, 110);
+    const sys = (`Business: ${A.biz.slice(0, 70)}.${S.location.region ? " Serves " + S.location.region + "." : ""} Services: ${svc}. Keep a search if the searcher could become a customer or is researching what it sells. Drop: other locations, jobs/salary/school, brand or celebrity names, unrelated topics. Reply ONLY JSON {"keep":[ids],"drop":{"id":"geo|job|brand|off"}}`).slice(0, 500);
+    const list = S.universe.slice(0, 450);
+    const batches = packLines(list, (x, i) => `${i} ${x.k}`);
+    VIZ.filter(list);
+    let done = 0;
+    const res = await pool(batches.map((b, j) => async () => {
+      const user = b.map((x, i) => `${i + 1} ${x.k}`).join("\n");
+      const r = await ai(sys, user, `AI relevance check ${j + 1}/${batches.length}`, true);
+      done++; $("#scCost").textContent = "$" + SCAN.cost.toFixed(3);
+      const keep = new Set(), why = {};
+      if (r && Array.isArray(r.keep)) { r.keep.forEach(n => keep.add(+n)); Object.entries(r.drop || {}).forEach(([n, w]) => why[+n] = String(w)); }
+      else b.forEach((x, i) => keep.add(i + 1));
+      b.forEach((x, i) => { const ok = keep.has(i + 1); VIZ.filterMark(x.k, ok, ok ? null : (why[i + 1] || "off")); });
+      return b.map((x, i) => ({ x, ok: keep.has(i + 1), why: why[i + 1] || "off" }));
+    }), 8);
+    const flat = res.flat();
+    const kept = flat.filter(r => r.ok).map(r => r.x);
+    S.dropped = flat.filter(r => !r.ok).map(r => ({ k: r.x.k, v: r.x.v, why: ["geo", "job", "brand", "off"].includes(r.why) ? r.why : "off" }));
+    if (kept.length < 10) { log("  AI kept too few searches; keeping the full list", "w"); S.dropped = []; return; }
+    S.aiChecked = flat.length;
+    S.universe = kept;
+    const by = {}; S.dropped.forEach(d => by[d.why] = (by[d.why] || 0) + 1);
+    const nm = { geo: "other locations", job: "jobs & careers", brand: "brand names", off: "off-topic" };
+    log(`✓ AI kept ${fmt(kept.length)} of ${fmt(flat.length)} searches (${batches.length} checks)`, "ok");
+    if (S.dropped.length) log(`  dropped: ${Object.entries(by).map(([k, n]) => n + " " + nm[k]).join(", ")}`, "w");
   },
   async local() {
     const S = SCAN;
@@ -325,6 +395,7 @@ const RUN = {
     S.universe.forEach(u => { const x = loc[u.k]; if (x && x.search_volume && u.v) ratios.push(x.search_volume / u.v); });
     ratios.sort((a, b) => a - b);
     const ratio = ratios.length ? ratios[Math.floor(ratios.length * 0.25)] : 0.03;
+    const natTotal = S.universe.reduce((a, u) => a + u.v, 0);
     S.universe.forEach(u => {
       const x = loc[u.k]; u.nv = u.v;
       if (x && x.search_volume != null) { u.v = x.search_volume; if (x.cpc) { u.c = +x.cpc.toFixed(2); u.ce = false; } }
@@ -334,14 +405,15 @@ const RUN = {
     S.universe = mergeClusters(S.universe.filter(u => u.v > 0), 100).sort((a, b) => b.v - a.v);
     S.merged = (S.merged || 0) + (n0 - S.universe.length);
     S.localRatio = +ratio.toFixed(4);
+    S.localTotals = { nat: natTotal, loc: S.universe.reduce((a, u) => a + u.v, 0) };
     fillCpc(S.universe);
-    log(`✓ local volumes for ${fmt(Object.keys(loc).length)} searches · ${S.location.region} ≈ ${(ratio * 100).toFixed(1)}% of US demand · ${fmt(S.universe.length)} distinct searches after merging variants`, "ok");
+    log(`✓ ${fmt(S.localTotals.loc)} searches/mo in ${S.location.region} (vs ${fmt(natTotal)} nationwide) · ${fmt(S.universe.length)} distinct searches`, "ok");
     VIZ.local();
   },
   async comp() {
     const S = SCAN, L = { location_code: S.location.code, language_code: LANG };
     const idx = {}; S.universe.forEach((u, i) => idx[u.k] = i);
-    const core = S.universe.map((u, i) => ({ u, i })).sort((a, b) => b.u.v * Math.max(b.u.c, .5) - a.u.v * Math.max(a.u.c, .5)).slice(0, 800);
+    const core = S.universe.map((u, i) => ({ u, i })).sort((a, b) => b.u.v - a.u.v).slice(0, 800);
     const batches = []; for (let i = 0; i < core.length; i += 200) batches.push(core.slice(i, i + 200));
     const res = await Promise.all(batches.map((b, j) => call(EP.serpComp, { keywords: b.map(x => x.u.k), ...L, limit: 100, item_types: ["organic"], include_subdomains: true }, `Who ranks: batch ${j + 1} of ${batches.length} (${b.length} searches)`)));
     const doms = {};
@@ -364,29 +436,57 @@ const RUN = {
   async serp() {
     const S = SCAN;
     const top = S.universe.map((u, i) => ({ u, i })).filter(x => x.u.v > 0).sort((a, b) => b.u.v * Math.max(b.u.c, .5) - a.u.v * Math.max(a.u.c, .5)).slice(0, 20);
-    const res = await Promise.all(top.map(x => call(EP.serp, { keyword: x.u.k, location_name: S.location.serp || S.location.ads, language_code: LANG, depth: 20, device: "desktop" }, "Live Google: " + x.u.k)));
     const mine = d => d === S.domain || d.endsWith("." + S.domain);
-    res.forEach((r, j) => {
+    await Promise.all(top.map(async (x, j) => {
+      const r = await call(EP.serp, { keyword: x.u.k, location_name: S.location.serp || S.location.ads, language_code: LANG, depth: 20, device: "desktop" }, "Live Google: " + x.u.k);
       const items = r?.[0]?.items; if (!items) return;
-      const org = [], lp = []; let ads = 0, ai = false;
+      const org = [], lp = []; let ads = 0, aio = false;
       items.forEach(it => {
         if (it.type === "organic" && org.length < 20) org.push([normDomain(it.domain), it.rank_group]);
         else if (it.type === "local_pack") lp.push([it.title || "", normDomain(it.domain || it.url || "")]);
         else if (it.type === "paid") ads++;
-        else if (it.type === "ai_overview") ai = true;
+        else if (it.type === "ai_overview") aio = true;
       });
       const you = org.find(o => mine(o[0]));
-      S.serps.push({ i: top[j].i, k: top[j].u.k, org, lp: lp.slice(0, 3), ads, ai, you: you ? you[1] : null, youLp: lp.some(l => mine(l[1])) });
-      VIZ.serpTile(S.serps[S.serps.length - 1]);
-      log(`  ${top[j].u.k}: ${you ? "you're #" + you[1] : "you're not in the top 20"} · #1 ${org[0] ? org[0][0] : "–"}${lp.length ? " · map pack" : ""}`, you && you[1] <= 3 ? "ok" : "w");
-    });
+      const s = { i: x.i, k: x.u.k, org, lp: lp.slice(0, 3), ads, ai: aio, you: you ? you[1] : null, youLp: lp.some(l => mine(l[1])) };
+      S.serps.push(s); VIZ.serpTile(s);
+      log(`  ${x.u.k}: ${you ? "you're #" + you[1] : "you're not in the top 20"} · #1 ${org[0] ? org[0][0] : "–"}${lp.length ? " · map pack" : ""}`, you && you[1] <= 3 ? "ok" : "w");
+    }));
   },
-  async table() {
+  async gap() {
     R = compute(SCAN);
-    log(`✓ market: ${fmt(R.market.clicks)} organic clicks/mo worth ${money(R.market.value)}`, "ok");
-    log(`✓ you capture ${(R.you.share * 100).toFixed(1)}% · ${fmt(R.you.clicks)} visits/mo worth ${money(R.you.value)}`, "ok");
-    log(`$ left on the table: +${fmt(R.table.clicks)} visits/mo · ${money(R.table.value)}/mo`, "w");
-    await VIZ.table();
+    const top = R.comps.slice(0, 18).map(c => c.d);
+    VIZ.gapStart();
+    if (SCAN.ai && SCAN.ai.biz && top.length) {
+      const sys = `Classify each domain against this business: ${SCAN.ai.biz.slice(0, 70)}. direct = same kind of business competing for the same customers; directory = listings, reviews or lead-gen; media = news, info, wiki, video or forum; other. Reply ONLY JSON {"t":{"id":"direct|directory|media|other"}}`.slice(0, 500);
+      const groups = packLines(top, (d, i) => `${i} ${d}`);
+      const types = {};
+      for (const g of groups) {
+        const j = await ai(sys, g.map((d, i) => `${i + 1} ${d}`).join("\n"), "AI: vet competitors");
+        Object.entries(j?.t || {}).forEach(([n, t]) => { const d = g[+n - 1]; if (d) types[d] = ["direct", "directory", "media", "other"].includes(t) ? t : "other"; });
+      }
+      SCAN.ai.types = types;
+      R = compute(SCAN);
+      const nd = top.filter(d => types[d] === "direct").length;
+      log(`✓ AI vetted ${top.length} competitors · ${nd} direct, ${top.length - nd} directories, media or other`, "ok");
+    }
+    log(`✓ market: ${fmt(R.market.clicks)} organic visits/mo across ${fmt(R.items.length)} searches`, "ok");
+    log(`✓ you get ${fmt(R.you.clicks)} visits/mo · competitors take ${fmt(R.missing.clicks)}`, "ok");
+    log(`✓ ${fmt(R.notYours.n)} searches where you're not on page one · worth ${fmt(R.notYours.clicks)} visits/mo`, "w");
+    await VIZ.gap();
+  },
+  async proj() {
+    const sc = scenarios(R).exp, lead = R.comps.find(c => c.type === "direct") || R.comps[0];
+    VIZ.proj(sc);
+    if (SCAN.ai && SCAN.ai.biz) {
+      const sys = 'You are an SEO strategist talking to a business owner. Use only the numbers given. Plain words, no jargon. Reply ONLY JSON {"takeaway":"2 short sentences max","moves":["3 short actions, 12 words max each"]}';
+      const topT = R.topics.filter(t => t.pot > 0).sort((a, b) => b.pot - a.pot).slice(0, 3).map(t => `${t.name} +${Math.round(t.pot)}`).join("; ");
+      const u = `site ${SCAN.domain} (${SCAN.ai.biz}); visits now ${Math.round(R.you.clicks)}/mo; market ${Math.round(R.market.clicks)}/mo; competitors take ${Math.round(R.missing.clicks)}/mo; leader ${lead ? lead.d + " ~" + Math.round(lead.clicks) : "n/a"}; 12-month realistic gain +${Math.round(sc.gain)}/mo; biggest gaps: ${topT}; ${R.items.filter(x => x.p > 3 && x.p <= 20).length} searches ranked 4-20`.slice(0, 500);
+      const j = await ai(sys, u, "AI: write the takeaway");
+      if (j) { SCAN.ai.takeaway = String(j.takeaway || "").slice(0, 300); SCAN.ai.moves = (Array.isArray(j.moves) ? j.moves : []).slice(0, 3).map(m => String(m).slice(0, 120)); }
+    }
+    log(`✓ 12-month projection (expected): ${fmt(R.you.clicks)} → ${fmt(sc.months[12].clicks)} visits/mo`, "ok");
+    await sleep(REPLAY ? 300 : 1200);
   },
 };
 
@@ -412,7 +512,8 @@ function compute(S) {
     });
     comps = Object.values(m);
   } else comps = S.comps.map(c => ({ d: c.d, pos: { ...c.pos }, pack: {} }));
-  comps.forEach(c => c.platform = isPlatform(c.d));
+  const types = (S.ai && S.ai.types) || {};
+  comps.forEach(c => { c.platform = isPlatform(c.d); c.type = types[c.d] || (c.platform ? "directory" : null); });
   let mClicks = 0, mValue = 0, yClicks = 0, yValue = 0, tClicks = 0, tValue = 0, searches = 0, bClicks = 0, bValue = 0, yb = 0, ybv = 0;
   const items = U.map((u, i) => {
     const p = yourPos[i], c = u.c || 0, s = serpBy[i], lp = s && s.lp.length;
@@ -430,15 +531,16 @@ function compute(S) {
     return { ...u, i, p, pk, f, live: !!s, lp: !!lp, st: pk ? "top" : status(p), now, nowVal: now * c, mk, mkVal: mk * c, pot, potVal: pot * c, lead };
   });
   comps.forEach(cp => {
-    let cl = 0, val = 0, n = 0, n3 = 0, sp = 0, np = 0;
+    let cl = 0, val = 0, n = 0, n3 = 0, sp = 0, np = 0, own = 0, ownC = 0;
     const idx = new Set([...Object.keys(cp.pos), ...Object.keys(cp.pack)]);
     idx.forEach(i => {
       const u = U[i], it = items[i]; if (!u) return;
       const p = cp.pos[i], k = cp.pack[i];
       const x = u.v * ((p ? ctr(p) * it.f : 0) + (k ? PACK[k - 1] : 0)); cl += x; val += x * (u.c || 0);
       if (p && p <= 10) { n++; sp += p; } if (p && p <= 3) n3++; if (k) np++;
+      if (((p && p <= 10) || k) && !(it.p && it.p <= 10) && !it.pk) { own++; ownC += x; }
     });
-    Object.assign(cp, { clicks: cl, value: val, kw10: n, kw3: n3, packs: np, avg: n ? sp / n : null, share: bClicks ? cl / bClicks : 0 });
+    Object.assign(cp, { own, ownClicks: ownC, clicks: cl, value: val, kw10: n, kw3: n3, packs: np, avg: n ? sp / n : null, share: bClicks ? cl / bClicks : 0 });
   });
   comps.sort((a, b) => b.clicks - a.clicks);
   const you = { d: S.domain, clicks: yClicks, value: yValue, bClicks: yb, share: bClicks ? yb / bClicks : 0, kw10: items.filter(x => x.p && x.p <= 10).length, kw3: items.filter(x => x.p && x.p <= 3).length, packs: items.filter(x => x.pk).length, me: true };
@@ -449,7 +551,9 @@ function compute(S) {
   const rest = Math.max(0, bClicks - yb - comps.slice(0, 5).reduce((a, c) => a + c.clicks, 0));
   const nLive = local ? S.serps.length : 0;
   const basis = local ? { local: true, clicks: bClicks, value: bValue, n: nLive, pct: mValue ? bValue / mValue : (mClicks ? bClicks / mClicks : 0), where: S.location.city || S.location.region } : { local: false, clicks: mClicks, value: mValue, n: items.length, pct: 1 };
-  return { items, comps, you, topics, searches, basis, market: { clicks: mClicks, value: mValue }, table: { clicks: tClicks, value: tValue }, rest };
+  const ny = items.filter(x => !(x.p && x.p <= 10) && !x.pk);
+  const notYours = { n: ny.length, clicks: ny.reduce((a, x) => a + x.mk - x.now, 0), value: ny.reduce((a, x) => a + x.mkVal - x.nowVal, 0) };
+  return { items, comps, you, topics, searches, basis, notYours, missing: { clicks: Math.max(0, mClicks - yClicks), value: Math.max(0, mValue - yValue) }, market: { clicks: mClicks, value: mValue }, table: { clicks: tClicks, value: tValue }, rest };
 }
 
 function clusterTopics(items, S, comps) {
@@ -516,138 +620,304 @@ function clusterTopics(items, S, comps) {
 
 /* ---------- scan overlay visual ---------- */
 const VIZ = (() => {
-  let cv, ctx, W, H, CX, CY, RAD, D, raf, t0;
-  let parts = [], comps = [], beams = [], tiles = [], center = "", sweep = 0, tablePhase = 0;
+  let cv, ctx, W, H, D, CX, CY, RAD, raf, mob, P;
+  let parts = [], byK = {}, comps = [], beams = [], tiles = [], labels = [], wedges = null, center = "", sweep = 0;
+  let scene = null, phase = 0, projFrac = 0, aiCore = 0, tokens = [], probes = [], rows = [], rowsAt = 0, gapList = [], bars = [];
+  const C = { gold: "#ffc13b", green: "#3ee98a", cyan: "#2fd0ff", pink: "#ff4fa8", violet: "#9b8cff", orange: "#ff8a3d", red: "#ff5d6c", ink: "#f3f4ff", ink2: "#b3b7e0", ink3: "#7a7fae", line: "#2a2e58", panel: "rgba(17,19,42,.9)" };
+  const TYPE_C = { direct: C.red, directory: C.orange, media: C.cyan, other: C.ink3 };
   const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
-  function resize() { D = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); const mob = W < 700; CX = W < 1000 ? W * 0.5 : W * 0.4; CY = mob ? H * 0.43 : H * 0.5; RAD = mob ? Math.min(W * 0.34, H * 0.23) : Math.min(W < 1000 ? W * 0.4 : W * 0.24, H * 0.34); }
-  let wedges = null, labels = [];
-  function setTopics() {
-    const items = SCAN.universe.map((u, i) => ({ ...u, i, mk: u.v * SUM10, mkVal: u.v * SUM10 * (u.c || 0) }));
-    const tp = clusterTopics(items, SCAN, []).slice(0, 10);
-    const tot = tp.reduce((a, t) => a + Math.max(t.n, 6), 0) || 1;
-    let a0 = -Math.PI / 2; wedges = {}; labels = [];
-    tp.forEach((t, j) => { const span = Math.PI * 2 * Math.max(t.n, 6) / tot; wedges[t.name] = [a0, span]; labels.push({ name: t.name, a: a0 + span / 2, n: t.n, born: performance.now() + j * 160 }); a0 += span; });
-    const byK = {}; items.forEach(x => byK[x.k] = x.topic);
-    parts.forEach(p => { const tn = byK[p.k]; const w = wedges[tn]; if (!w) return; const pl = place(p.k, p.inner, w); p.tx = pl.tx; p.ty = pl.ty; p.topic = tn; });
-    return byK;
+  const now = () => performance.now();
+  const ease = x => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+  function resize() {
+    D = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0);
+    mob = W < 1000;
+    if (!mob) { P = { x: 28, y: 172, w: Math.min(360, W * 0.27), h: H - 172 - 190 }; const left = P.x + P.w + 34, right = W - 462; CX = (left + right) / 2; CY = H * 0.5; RAD = Math.min((right - left) / 2 / 1.5, H * 0.33); }
+    else { RAD = Math.min(W * 0.34, H * 0.17); CY = 118 + RAD + 22; CX = W / 2; const py = CY + RAD + 30; P = { x: 14, y: py, w: W - 28, h: Math.max(110, H - 212 - py) }; }
   }
-  function topicKey(k) { const f = toks(k).filter(t => !GENERIC.has(t) && !GEO_TOKENS.has(t) && !(SCAN.seeds.join(" ").includes(t))); return f[0] || k; }
+  function rr(x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); }
+  function txt(s, x, y, font, col, align = "left") { ctx.font = font; ctx.fillStyle = col; ctx.textAlign = align; ctx.fillText(s, x, y); }
+  function fit(s, maxW) { if (ctx.measureText(s).width <= maxW) return s; while (s.length > 3 && ctx.measureText(s + "…").width > maxW) s = s.slice(0, -1); return s + "…"; }
+  const DISP = '"Unbounded","Arial Black",sans-serif', MONO = '"JetBrains Mono",monospace', BODY = '"Instrument Sans",Arial,sans-serif';
+  function panelBox(title, accent, t0) {
+    const a = ease((now() - t0) / 400);
+    ctx.globalAlpha = a; rr(P.x, P.y, P.w, P.h, 14); ctx.fillStyle = C.panel; ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = accent; ctx.fillRect(P.x + 16, P.y + 17, 7, 7);
+    txt(title, P.x + 30, P.y + 24, `700 ${mob ? 10 : 11}px ${MONO}`, accent);
+    return a;
+  }
+  function topicKey(k) { const f = toks(k).filter(t => !GENERIC.has(t) && !GEO_TOKENS.has(t) && !((SCAN.seeds || []).join(" ").includes(t))); return f[0] || k; }
   function place(k, inner, w) {
     const a = w ? w[0] + w[1] * (0.08 + 0.84 * hash(k + "a")) : hash(topicKey(k)) * Math.PI * 2 + (hash(k) - 0.5) * 0.5;
     const r = inner ? 0.1 + 0.28 * hash(k + "r") : 0.42 + 0.58 * Math.sqrt(hash(k + "r"));
     return { tx: CX + Math.cos(a) * r * RAD * 1.25, ty: CY + Math.sin(a) * r * RAD };
   }
-  function sizeOf(v, c) { return 1.2 + Math.min(7, Math.sqrt((v * Math.max(c || 0, 0.4)) / 40)); }
+  function sizeOf(v) { return 1.3 + Math.min(6.5, Math.sqrt(v / 60)); }
+  function addPart(k, v, inner, mine, st, from) {
+    if (byK[k]) return byK[k];
+    const pl = place(k, inner); const ang = Math.random() * 7;
+    const p = { k, v, inner, x: from ? from.x : CX + Math.cos(ang) * RAD * 2, y: from ? from.y : CY + Math.sin(ang) * RAD * 2, ...pl, r: 0, tr: sizeOf(v), mine, st, ph: Math.random() * 6, a: 1, gone: 0, vy: 0 };
+    parts.push(p); byK[k] = p; return p;
+  }
+  function setTopics() {
+    const items = SCAN.universe.map((u, i) => ({ ...u, i, mk: u.v * SUM10, mkVal: u.v * SUM10 * (u.c || 0) }));
+    const tp = clusterTopics(items, SCAN, []).slice(0, 10);
+    const tot = tp.reduce((a, t) => a + Math.max(t.n, 6), 0) || 1;
+    let a0 = -Math.PI / 2; wedges = {}; labels = [];
+    tp.forEach((t, j) => { const span = Math.PI * 2 * Math.max(t.n, 6) / tot; wedges[t.name] = [a0, span]; labels.push({ name: t.name, a: a0 + span / 2, n: t.n, born: now() + j * 140 }); a0 += span; });
+    const tk = {}; items.forEach(x => tk[x.k] = x.topic);
+    parts.forEach(p => { const w = wedges[tk[p.k]]; if (!w) return; const pl = place(p.k, p.inner, w); p.tx = pl.tx; p.ty = pl.ty; });
+  }
   function start(domain) {
     cv = $("#radar"); ctx = cv.getContext("2d"); resize(); window.addEventListener("resize", resize);
-    parts = []; comps = []; beams = []; tiles = []; labels = []; wedges = null; center = domain; tablePhase = 0; t0 = performance.now();
+    parts = []; byK = {}; comps = []; beams = []; tiles = []; labels = []; wedges = null; tokens = []; probes = []; rows = []; gapList = []; bars = [];
+    center = domain; phase = 0; projFrac = 0; aiCore = 0; scene = null;
     cancelAnimationFrame(raf); loop();
   }
   function stop() { cancelAnimationFrame(raf); }
   function loop() {
-    const t = performance.now();
+    const t = now();
     ctx.clearRect(0, 0, W, H);
-    // rings
-    ctx.strokeStyle = "rgba(91,140,255,.10)"; ctx.lineWidth = 1;
+    // radar rings + sweep
+    ctx.strokeStyle = "rgba(155,140,255,.13)"; ctx.lineWidth = 1;
     [0.4, 0.7, 1].forEach(k => { ctx.beginPath(); ctx.ellipse(CX, CY, RAD * k * 1.25, RAD * k, 0, 0, 7); ctx.stroke(); });
-    // sweep
-    sweep += 0.018;
-    const g = ctx.createConicGradient ? ctx.createConicGradient(sweep, CX, CY) : null;
-    if (g) { g.addColorStop(0, "rgba(251,191,36,.16)"); g.addColorStop(0.08, "rgba(251,191,36,0)"); g.addColorStop(1, "rgba(251,191,36,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(CX, CY, RAD * 1.25, RAD, 0, 0, 7); ctx.fill(); }
-    // beams
+    sweep += 0.016;
+    if (ctx.createConicGradient) { const g = ctx.createConicGradient(sweep, CX, CY); g.addColorStop(0, aiCore ? "rgba(155,140,255,.22)" : "rgba(255,193,59,.17)"); g.addColorStop(0.08, "rgba(255,193,59,0)"); g.addColorStop(1, "rgba(255,193,59,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(CX, CY, RAD * 1.25, RAD, 0, 0, 7); ctx.fill(); }
+    // probes (market)
+    probes.forEach(pr => { const k = ((t - pr.t) / 900) % 1; const x1 = CX + Math.cos(pr.a) * RAD * 1.25, y1 = CY + Math.sin(pr.a) * RAD; ctx.strokeStyle = `rgba(47,208,255,${0.25 + 0.25 * Math.sin(t / 200 + pr.a)})`; ctx.setLineDash([3, 6]); ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = C.cyan; ctx.beginPath(); ctx.arc(CX + (x1 - CX) * k, CY + (y1 - CY) * k, 2.5, 0, 7); ctx.fill(); });
+    // beams competitor -> keyword
     beams = beams.filter(b => t - b.t < 1400);
-    beams.forEach(b => { const a = 1 - (t - b.t) / 1400; ctx.strokeStyle = `rgba(255,107,125,${0.35 * a})`; ctx.beginPath(); ctx.moveTo(b.a.x, b.a.y); ctx.lineTo(b.b.x, b.b.y); ctx.stroke(); });
-    if (comps.length && Math.random() < 0.5) { const c = comps[Math.floor(Math.random() * comps.length)]; if (c.own.length) { const p = c.own[Math.floor(Math.random() * c.own.length)]; beams.push({ a: c, b: p, t }); } }
+    beams.forEach(b => { const a = 1 - (t - b.t) / 1400; ctx.strokeStyle = phase ? `rgba(255,193,59,${0.45 * a})` : `rgba(255,93,108,${0.35 * a})`; ctx.beginPath(); ctx.moveTo(b.a.x, b.a.y); ctx.lineTo(b.b.x, b.b.y); ctx.stroke(); });
+    if (comps.length && Math.random() < (phase === 1 ? 0.9 : 0.45)) { const c = comps[Math.floor(Math.random() * comps.length)]; if (c.own.length) beams.push({ a: c, b: c.own[Math.floor(Math.random() * c.own.length)], t }); }
     // particles
     parts.forEach(p => {
-      p.x += (p.tx - p.x) * 0.06; p.y += (p.ty - p.y) * 0.06; p.r += (p.tr - p.r) * 0.08;
-      let col = p.mine ? COLORS[p.st] || COLORS.top : "rgba(120,140,170,.45)";
-      if (tablePhase && !p.mine) col = `rgba(251,191,36,${0.35 + 0.35 * Math.sin(t / 300 + p.ph)})`;
-      if (tablePhase && p.mine && p.st === "close") col = COLORS.close;
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.6, p.r), 0, 7); ctx.fill();
+      if (p.gone) { p.vy += 0.18; p.y += p.vy; p.a = Math.max(0, p.a - 0.012); }
+      else { p.x += (p.tx - p.x) * 0.06; p.y += (p.ty - p.y) * 0.06; }
+      p.r += (p.tr - p.r) * 0.08;
+      if (p.a <= 0) return;
+      let col = p.mine ? (COLORS[p.st] || C.green) : "rgba(150,155,210,.42)";
+      if (phase >= 1 && !p.mine) col = p.won ? C.green : `rgba(255,193,59,${0.4 + 0.35 * Math.sin(t / 300 + p.ph)})`;
+      if (p.keep && t - p.keep < 700) col = C.green;
+      if (p.gone) col = C.red;
+      ctx.globalAlpha = p.a; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.6, p.r), 0, 7); ctx.fill();
       if (p.ping && t - p.ping < 900) { const a = 1 - (t - p.ping) / 900; ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 14 * (1 - a) + 2, 0, 7); ctx.stroke(); }
+      ctx.globalAlpha = 1;
     });
+    // AI core + tokens flowing in
+    if (aiCore) {
+      const pul = 1 + 0.08 * Math.sin(t / 220);
+      const gr = ctx.createRadialGradient(CX, CY, 0, CX, CY, 60 * pul); gr.addColorStop(0, "rgba(155,140,255,.55)"); gr.addColorStop(1, "rgba(155,140,255,0)");
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(CX, CY, 60 * pul, 0, 7); ctx.fill();
+      ctx.strokeStyle = C.violet; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); ctx.lineDashOffset = -t / 40; ctx.beginPath(); ctx.arc(CX, CY, 30, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      ctx.fillStyle = "#1a1640"; ctx.beginPath(); ctx.arc(CX, CY, 22, 0, 7); ctx.fill(); ctx.strokeStyle = C.violet; ctx.stroke();
+      txt("AI", CX, CY + 5, `800 14px ${DISP}`, C.ink, "center");
+    }
+    tokens = tokens.filter(k => t - k.t < 2400);
+    tokens.forEach(k => { const q = ease((t - k.t) / 2000); if (q <= 0) return; const x = k.x + (CX - k.x) * q, y = k.y + (CY - k.y) * q; ctx.globalAlpha = 1 - q * q; txt(k.s, x, y, `600 ${mob ? 10 : 12}px ${MONO}`, C.ink2, "center"); ctx.globalAlpha = 1; });
+    if (aiCore && Math.random() < 0.06 && scene && scene.toks && scene.toks.length) { const s = scene.toks[Math.floor(Math.random() * scene.toks.length)]; const a = Math.random() * 7; tokens.push({ s, x: CX + Math.cos(a) * RAD * 1.5, y: CY + Math.sin(a) * RAD * 1.15, t }); }
     // competitor planets
-    comps.forEach((c, i) => {
-      c.a += 0.0009; c.x = CX + Math.cos(c.a) * RAD * 1.36; c.y = CY + Math.sin(c.a) * RAD * 1.1;
-      ctx.fillStyle = "rgba(255,107,125,.16)"; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 10, 0, 7); ctx.fill();
-      ctx.fillStyle = "#ff6b7d"; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 7); ctx.fill();
-      ctx.fillStyle = "#c6d2e2"; ctx.font = (W < 700 ? "600 9px" : "600 11px") + " JetBrains Mono"; ctx.textAlign = "center"; ctx.fillText(W < 700 && c.d.length > 16 ? c.d.slice(0, 15) + "…" : c.d, c.x, c.y - c.r - 8);
+    comps.forEach(c => {
+      c.a += 0.0008; c.x = CX + Math.cos(c.a) * RAD * 1.36; c.y = CY + Math.sin(c.a) * RAD * 1.1;
+      const col = c.type ? TYPE_C[c.type] : C.red;
+      ctx.fillStyle = col + "2e"; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 10, 0, 7); ctx.fill();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 7); ctx.fill();
+      ctx.font = `600 ${mob ? 9 : 11}px ${MONO}`; const nm = fit(c.d, mob ? 92 : 150);
+      txt(nm, c.x, c.y - c.r - 8, ctx.font, C.ink2, "center");
+      if (c.type && c.typeAt) { const a = ease((t - c.typeAt) / 500); ctx.globalAlpha = a; txt(c.type.toUpperCase(), c.x, c.y + c.r + 14, `700 ${mob ? 8 : 9}px ${MONO}`, col, "center"); ctx.globalAlpha = 1; }
     });
     // topic titles around the radar
     labels.forEach(l => {
+      if (mob && comps.length) return;
       const a = Math.min(1, Math.max(0, (t - l.born) / 600)); if (!a) return;
-      const rx = RAD * 1.25 * 0.36, ry = RAD * 0.36;
-      ctx.globalAlpha = a * 0.5; ctx.strokeStyle = "rgba(251,191,36,.35)"; ctx.beginPath(); ctx.moveTo(CX + Math.cos(l.a) * rx, CY + Math.sin(l.a) * ry); ctx.lineTo(CX + Math.cos(l.a) * RAD * 1.25 * 1.02, CY + Math.sin(l.a) * RAD * 1.02); ctx.stroke();
-      ctx.globalAlpha = a; const lx = CX + Math.cos(l.a) * RAD * 1.25 * 1.06, ly = CY + Math.sin(l.a) * RAD * 1.06;
-      const txt = l.name.toUpperCase(); ctx.font = (W < 700 ? "700 9px" : "700 11px") + " JetBrains Mono"; ctx.textAlign = Math.cos(l.a) > 0.25 ? "left" : Math.cos(l.a) < -0.25 ? "right" : "center";
-      const tw = ctx.measureText(txt).width; const bx = ctx.textAlign === "left" ? lx - 6 : ctx.textAlign === "right" ? lx - tw - 6 : lx - tw / 2 - 6;
-      ctx.fillStyle = "rgba(6,10,18,.85)"; ctx.fillRect(bx, ly - 11, tw + 12, 17); ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, lx, ly + 2);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = a; const lx = CX + Math.cos(l.a) * RAD * 1.25 * 1.07, ly = CY + Math.sin(l.a) * RAD * 1.07;
+      const s = l.name.toUpperCase(); ctx.font = `700 ${mob ? 8.5 : 10.5}px ${MONO}`; const al = Math.cos(l.a) > 0.25 ? "left" : Math.cos(l.a) < -0.25 ? "right" : "center";
+      const tw = ctx.measureText(s).width, bx = al === "left" ? lx - 5 : al === "right" ? lx - tw - 5 : lx - tw / 2 - 5;
+      ctx.fillStyle = "rgba(10,11,25,.85)"; ctx.fillRect(bx, ly - 10, tw + 10, 15); txt(s, lx, ly + 1.5, ctx.font, "#ffd56e", al); ctx.globalAlpha = 1;
     });
-    // center
-    ctx.fillStyle = "rgba(62,224,143,.16)"; ctx.beginPath(); ctx.arc(CX, CY, 26 + 4 * Math.sin(t / 400), 0, 7); ctx.fill();
-    ctx.fillStyle = "#3ee08f"; ctx.beginPath(); ctx.arc(CX, CY, 9, 0, 7); ctx.fill();
-    ctx.fillStyle = "#ecf2fa"; ctx.font = "700 14px Inter"; ctx.textAlign = "center"; ctx.fillText(center, CX, CY + 44);
-    // serp tiles
-    tiles.forEach((s, j) => {
-      const tw = 62, th = 112, gap = 10, x0 = 28 + j * (tw + gap), y0 = H - 300;
-      if (W < 1000 || x0 + tw > CX - RAD * 0.9 && j > 3) return;
-      const a = Math.min(1, (t - s.t) / 500);
-      ctx.globalAlpha = a; ctx.fillStyle = "rgba(11,19,32,.92)"; ctx.strokeStyle = "rgba(38,52,76,1)"; ctx.fillRect(x0, y0, tw, th); ctx.strokeRect(x0, y0, tw, th);
-      for (let r = 0; r < 10; r++) { const d = s.org[r]; const me = d && (d[0] === SCAN.domain || d[0].endsWith("." + SCAN.domain)); ctx.fillStyle = me ? "#3ee08f" : r === 0 ? "#ff6b7d" : "#26344c"; ctx.fillRect(x0 + 6, y0 + 20 + r * 8.6, tw - 12, 5.5); }
-      ctx.fillStyle = "#8796ab"; ctx.font = "9px JetBrains Mono"; ctx.textAlign = "left"; ctx.fillText(s.k.slice(0, 11), x0 + 5, y0 + 12);
-      ctx.globalAlpha = 1;
-    });
+    // center node
+    if (!aiCore) {
+      ctx.fillStyle = "rgba(62,233,138,.16)"; ctx.beginPath(); ctx.arc(CX, CY, 24 + 4 * Math.sin(t / 400), 0, 7); ctx.fill();
+      ctx.fillStyle = C.green; ctx.beginPath(); ctx.arc(CX, CY, 8, 0, 7); ctx.fill();
+    }
+    txt(center, CX, CY + 46, `700 ${mob ? 12 : 14}px ${BODY}`, C.ink, "center");
+    // scene panel
+    if (scene && DRAW[scene.id]) DRAW[scene.id](t);
     raf = requestAnimationFrame(loop);
   }
+  /* ----- panels per scene ----- */
+  const DRAW = {
+    foot(t) {
+      const o = SCAN.overview || {}, a = panelBox("YOUR FOOTPRINT", C.green, scene.t0), k = ease((t - scene.t0 - 300) / 1400);
+      const top = P.y + 40;
+      txt(fmt((o.count || 0) * k), P.x + 16, top + (mob ? 26 : 36), `800 ${mob ? 24 : 34}px ${DISP}`, C.ink);
+      txt("keywords ranking · ~" + fmt((o.etv || 0) * k) + " visits/mo", P.x + 16, top + (mob ? 44 : 58), `500 ${mob ? 11 : 13}px ${BODY}`, C.ink2);
+      const rowsF = [["Top 3", o.top3 || 0, C.green], ["4–10", o.p10 || 0, C.cyan], ["11–20", o.p20 || 0, C.gold], ["21–100", Math.max(0, (o.count || 0) - (o.top3 || 0) - (o.p10 || 0) - (o.p20 || 0)), C.violet]];
+      const mx = Math.max(1, ...rowsF.map(r => r[1])), y0 = top + (mob ? 60 : 84), rh = mob ? Math.min(22, (P.h - 110) / 4) : 30;
+      rowsF.forEach(([l, n, c], j) => { const y = y0 + j * rh, q = ease((t - scene.t0 - 600 - j * 220) / 900), bw = (P.w - 130) * n / mx * q;
+        txt(l, P.x + 16, y + 11, `600 ${mob ? 10 : 11}px ${MONO}`, C.ink3); rr(P.x + 74, y, P.w - 130, 12, 4); ctx.fillStyle = "#0d0f24"; ctx.fill(); if (bw > 1) { rr(P.x + 74, y, bw, 12, 4); ctx.fillStyle = c; ctx.fill(); } txt(fmt(n * q), P.x + P.w - 16, y + 11, `700 ${mob ? 10 : 12}px ${MONO}`, C.ink, "right"); });
+      ctx.globalAlpha = 1;
+    },
+    brain(t) {
+      panelBox("AI · READING THE BUSINESS", C.violet, scene.t0);
+      const y = P.y + 44;
+      if (!scene.biz) { const dots = ".".repeat(1 + Math.floor(t / 350) % 3); txt("thinking" + dots, P.x + 16, y + 10, `600 ${mob ? 12 : 14}px ${MONO}`, C.violet); txt(`reading ${scene.toks.length} top searches`, P.x + 16, y + 30, `500 12px ${BODY}`, C.ink3); ctx.globalAlpha = 1; return; }
+      const n = Math.floor(Math.min(scene.biz.length, (t - scene.bizAt) / 28));
+      ctx.font = `700 ${mob ? 13 : 15}px ${BODY}`; wrapText(scene.biz.slice(0, n), P.x + 16, y + 10, P.w - 32, mob ? 17 : 20, C.ink);
+      const sy = y + (mob ? 44 : 62);
+      txt("SERVICES TO MAP", P.x + 16, sy, `700 ${mob ? 9 : 10}px ${MONO}`, C.ink3);
+      let x = P.x + 16, yy = sy + 10; ctx.font = `600 ${mob ? 11 : 12}px ${BODY}`;
+      (scene.svc || []).forEach((s, j) => { const q = ease((t - scene.bizAt - 900 - j * 260) / 400); if (q <= 0) return; const w = ctx.measureText(s).width + 18; if (x + w > P.x + P.w - 12) { x = P.x + 16; yy += mob ? 24 : 28; } if (yy + 22 > P.y + P.h) return; ctx.globalAlpha = q; rr(x, yy, w, mob ? 20 : 22, 11); ctx.fillStyle = "rgba(155,140,255,.16)"; ctx.fill(); ctx.strokeStyle = C.violet; ctx.stroke(); txt(s, x + 9, yy + (mob ? 14 : 15), ctx.font, C.ink); x += w + 6; ctx.globalAlpha = 1; });
+    },
+    market(t) {
+      panelBox("MAPPING THE MARKET", C.cyan, scene.t0);
+      const sd = scene.seeds || [], cnt = SCAN.seedCounts || {}, mx = Math.max(1, ...sd.map(s => cnt[s] || 0)), rh = mob ? Math.min(22, (P.h - 50) / Math.max(1, sd.length)) : Math.min(36, (P.h - 70) / Math.max(1, sd.length));
+      sd.forEach((s, j) => { const y = P.y + 46 + j * rh; ctx.font = `600 ${mob ? 11 : 12.5}px ${BODY}`; txt(fit(s, P.w - 110), P.x + 16, y + 10, ctx.font, C.ink);
+        const has = cnt[s] != null, q = has ? ease((t - scene.doneAt - j * 150) / 900) : 0;
+        if (!mob) { rr(P.x + 16, y + 16, P.w - 32, 6, 3); ctx.fillStyle = "#0d0f24"; ctx.fill(); }
+        if (has) { if (!mob) { rr(P.x + 16, y + 16, (P.w - 32) * (cnt[s] / mx) * q, 6, 3); ctx.fillStyle = C.cyan; ctx.fill(); } txt(fmt(cnt[s] * q), P.x + P.w - 16, y + 10, `700 ${mob ? 11 : 12}px ${MONO}`, C.cyan, "right"); }
+        else { const sh = (t / 6 + j * 40) % (P.w - 32); if (!mob) { ctx.fillStyle = "rgba(47,208,255,.5)"; ctx.fillRect(P.x + 16 + sh, y + 16, 30, 6); } txt("…", P.x + P.w - 16, y + 10, `700 12px ${MONO}`, C.cyan, "right"); } });
+    },
+    filter(t) {
+      panelBox("AI · RELEVANCE CHECK", C.violet, scene.t0);
+      const kept = rows.filter(r => r.st === true).length, drop = rows.filter(r => r.st === false).length;
+      txt(`✓ ${fmt(kept)} kept`, P.x + 16, P.y + 46, `700 ${mob ? 11 : 13}px ${MONO}`, C.green); txt(`✗ ${fmt(drop)} dropped`, P.x + (mob ? 120 : 140), P.y + 46, `700 ${mob ? 11 : 13}px ${MONO}`, C.red);
+      const marked = rows.filter(r => r.st != null), rh = mob ? 17 : 21, maxR = Math.floor((P.h - 70) / rh);
+      const vis = marked.slice(-maxR), y0 = P.y + 62;
+      ctx.save(); ctx.beginPath(); ctx.rect(P.x, y0 - 4, P.w, P.h - (y0 - P.y)); ctx.clip();
+      vis.forEach((r, j) => { const y = y0 + j * rh, q = ease((t - r.at) / 350); ctx.globalAlpha = Math.max(.25, q);
+        txt(r.st ? "✓" : "✗", P.x + 16, y + 12, `700 12px ${MONO}`, r.st ? C.green : C.red);
+        ctx.font = `500 ${mob ? 11 : 12.5}px ${BODY}`; const s = fit(r.k, P.w - (r.st ? 50 : 110)); txt(s, P.x + 34, y + 12, ctx.font, r.st ? C.ink : C.ink3);
+        if (!r.st) { const w = ctx.measureText(s).width; ctx.strokeStyle = "rgba(255,93,108,.7)"; ctx.beginPath(); ctx.moveTo(P.x + 34, y + 8); ctx.lineTo(P.x + 34 + w * q, y + 8); ctx.stroke();
+          const lab = { geo: "location", job: "jobs", brand: "brand", off: "off-topic" }[r.why] || r.why; ctx.font = `700 9px ${MONO}`; const lw = ctx.measureText(lab).width + 10; rr(P.x + P.w - 16 - lw, y + 1, lw, 15, 7); ctx.fillStyle = "rgba(255,93,108,.15)"; ctx.fill(); txt(lab, P.x + P.w - 21, y + 12, ctx.font, C.red, "right"); }
+        ctx.globalAlpha = 1; });
+      ctx.restore();
+      // scan line
+      const sy = y0 + Math.min(vis.length, maxR) * rh - 2; ctx.strokeStyle = "rgba(155,140,255,.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(P.x + 10, sy); ctx.lineTo(P.x + P.w - 10, sy); ctx.stroke(); ctx.lineWidth = 1;
+    },
+    local(t) {
+      panelBox("LOCAL DEMAND · " + (SCAN.location.abbr || ""), C.gold, scene.t0);
+      const lt = SCAN.localTotals || { nat: SCAN.universe.reduce((a, u) => a + (u.nv || u.v), 0), loc: SCAN.universe.reduce((a, u) => a + u.v, 0) };
+      const q = ease((t - scene.t0 - 300) / 1400), pct = lt.nat ? lt.loc / lt.nat : 0;
+      txt((pct * 100 * q).toFixed(1) + "%", P.x + 16, P.y + (mob ? 72 : 86), `800 ${mob ? 26 : 36}px ${DISP}`, C.gold);
+      txt(`of US searches for this market happen in ${SCAN.location.region}`, P.x + 16, P.y + (mob ? 90 : 110), `500 ${mob ? 11 : 13}px ${BODY}`, C.ink2);
+      [["Nationwide", lt.nat, C.ink3], [SCAN.location.region, lt.loc, C.gold]].forEach(([l, v, c], j) => { const y = P.y + (mob ? 104 : 136) + j * (mob ? 22 : 30); txt(l, P.x + 16, y + 10, `600 11px ${MONO}`, C.ink3); const bw = (P.w - 150) * (v / Math.max(1, lt.nat)) * q; rr(P.x + 100, y, Math.max(2, bw), 12, 4); ctx.fillStyle = c; ctx.fill(); txt(fmt(v * q) + "/mo", P.x + P.w - 16, y + 11, `700 11px ${MONO}`, C.ink, "right"); });
+    },
+    comp(t) {
+      panelBox("WHO OWNS THE MARKET", C.red, scene.t0);
+      const list = scene.list || [], mx = Math.max(1, ...list.map(r => r.v)), rh = mob ? Math.min(20, (P.h - 50) / Math.max(1, list.length)) : Math.min(40, (P.h - 60) / Math.max(1, list.length));
+      list.forEach((r, j) => { const y = P.y + 44 + j * rh, q = ease((t - scene.t0 - 400 - j * 160) / 1100);
+        ctx.font = `${r.me ? 800 : 600} ${mob ? 10.5 : 12}px ${BODY}`; txt(fit(r.d, mob ? P.w * 0.42 : P.w - 100), P.x + 16, y + 11, ctx.font, r.me ? C.green : C.ink);
+        const bx = mob ? P.x + P.w * 0.47 : P.x + 16, by = mob ? y + 3 : y + 17, bwm = mob ? P.w * 0.36 : P.w - 32;
+        rr(bx, by, Math.max(2, bwm * (r.v / mx) * q), mob ? 9 : 7, 3); ctx.fillStyle = r.me ? C.green : C.red; ctx.fill();
+        txt(fmt(r.v * q), P.x + P.w - 16, y + 11, `700 ${mob ? 10 : 11}px ${MONO}`, C.ink2, "right"); });
+      if (!mob) txt("estimated visits / month", P.x + 16, P.y + P.h - 12, `500 11px ${BODY}`, C.ink3);
+    },
+    serp(t) {
+      panelBox("LIVE GOOGLE · " + (SCAN.location.city || ""), C.cyan, scene.t0);
+      const cols = mob ? 6 : 4, tw = (P.w - 32 - (cols - 1) * 8) / cols, th = mob ? 74 : 92;
+      tiles.slice(0, mob ? 12 : 12).forEach((s, j) => { const cx = P.x + 16 + (j % cols) * (tw + 8), cy = P.y + 40 + Math.floor(j / cols) * (th + 8); if (cy + th > P.y + P.h - 4) return; const a = ease((t - s.t) / 400); ctx.globalAlpha = a;
+        rr(cx, cy, tw, th, 6); ctx.fillStyle = "#0d0f24"; ctx.fill(); ctx.strokeStyle = C.line; ctx.stroke();
+        ctx.font = `600 ${mob ? 7.5 : 8.5}px ${MONO}`; txt(fit(s.k, tw - 8), cx + 4, cy + 11, ctx.font, C.ink3);
+        if (s.lp && s.lp.length) { ctx.fillStyle = "rgba(47,208,255,.5)"; ctx.fillRect(cx + 4, cy + 16, tw - 8, 6); }
+        for (let r = 0; r < 8; r++) { const d = s.org[r]; const me = d && (d[0] === SCAN.domain || d[0].endsWith("." + SCAN.domain)); ctx.fillStyle = me ? C.green : r === 0 ? C.red : C.line; ctx.fillRect(cx + 4, cy + 26 + r * ((th - 32) / 8), tw - 8, Math.max(3, (th - 32) / 8 - 3)); }
+        ctx.globalAlpha = 1; });
+    },
+    gap(t) {
+      panelBox("TRAFFIC YOU DON'T OWN", C.gold, scene.t0);
+      const q = ease((t - scene.t0 - 300) / 1800);
+      txt(fmt((R ? R.missing.clicks : 0) * q), P.x + 16, P.y + (mob ? 66 : 80), `800 ${mob ? 26 : 36}px ${DISP}`, C.gold);
+      txt("visits/mo going to other sites", P.x + 16, P.y + (mob ? 84 : 102), `500 ${mob ? 11 : 13}px ${BODY}`, C.ink2);
+      const list = gapList, rh = mob ? 18 : 34, y0 = P.y + (mob ? 98 : 126);
+      list.forEach((c, j) => { const y = y0 + j * rh; if (y + rh > P.y + P.h) return; const a = ease((t - scene.t0 - 900 - j * 280) / 500); if (a <= 0) return; ctx.globalAlpha = a;
+        ctx.font = `600 ${mob ? 10.5 : 12}px ${BODY}`; txt(fit(c.d, P.w * (mob ? .5 : .62)), P.x + 16, y + 11, ctx.font, C.ink);
+        if (c.type) { ctx.font = `700 8.5px ${MONO}`; const lab = c.type.toUpperCase(), lw = ctx.measureText(lab).width + 10, lx = mob ? P.x + P.w * 0.55 : P.x + 16; const ly = mob ? y : y + 16; rr(lx, ly, lw, 14, 7); ctx.fillStyle = TYPE_C[c.type] + "26"; ctx.fill(); txt(lab, lx + 5, ly + 10, ctx.font, TYPE_C[c.type]); }
+        txt(`${fmt(c.own)} kw · ${fmt(c.ownClicks)}`, P.x + P.w - 16, y + 11, `700 ${mob ? 10 : 11}px ${MONO}`, C.gold, "right"); ctx.globalAlpha = 1; });
+    },
+    proj(t) {
+      panelBox("NEXT 12 MONTHS · EXPECTED", C.green, scene.t0);
+      const sc = scene.sc; if (!sc) return;
+      const x0 = P.x + 18, x1 = P.x + P.w - 18, y0 = P.y + P.h - 26, y1 = P.y + (mob ? 58 : 84), mx = Math.max(...sc.months.map(m => m.clicks)) * 1.1 || 1;
+      const q = ease((t - scene.t0 - 300) / 3200), upto = q * 12;
+      ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke();
+      ctx.setLineDash([2, 4]); ctx.strokeStyle = C.green; const by = y0 - (y0 - y1) * (sc.months[0].clicks / mx); ctx.beginPath(); ctx.moveTo(x0, by); ctx.lineTo(x1, by); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = C.gold; ctx.lineWidth = 3; ctx.beginPath();
+      for (let m = 0; m <= upto; m += 0.25) { const i = Math.floor(m), f = m - i, a = sc.months[i].clicks, b = sc.months[Math.min(12, i + 1)].clicks, v = a + (b - a) * f; const X = x0 + (x1 - x0) * m / 12, Y = y0 - (y0 - y1) * (v / mx); m === 0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
+      ctx.stroke(); ctx.lineWidth = 1;
+      const i = Math.floor(upto), cur = sc.months[Math.min(12, i)].clicks;
+      txt(fmt(cur), P.x + 16, P.y + (mob ? 50 : 66), `800 ${mob ? 20 : 28}px ${DISP}`, C.gold);
+      txt(`visits/mo at month ${Math.min(12, i)} (today ${fmt(sc.months[0].clicks)})`, P.x + (mob ? 110 : 16), P.y + (mob ? 48 : 84 - 2) + (mob ? 0 : 0), `500 ${mob ? 10.5 : 12}px ${BODY}`, C.ink2);
+      for (let m = 0; m <= 12; m += 3) txt(m === 0 ? "now" : "m" + m, x0 + (x1 - x0) * m / 12, y0 + 14, `600 9.5px ${MONO}`, C.ink3, "center");
+      projFrac = q;
+    },
+  };
+  function wrapText(s, x, y, maxW, lh, col) { const w = s.split(" "); let line = "", yy = y; ctx.fillStyle = col; ctx.textAlign = "left"; w.forEach(word => { const t2 = line ? line + " " + word : word; if (ctx.measureText(t2).width > maxW && line) { ctx.fillText(line, x, yy); line = word; yy += lh; } else line = t2; }); if (line) ctx.fillText(line, x, yy); }
+  /* ----- step hooks ----- */
   function foot() {
-    SCAN.ranked.slice(0, 220).forEach((r, j) => setTimeout(() => {
-      const pl = place(r.k, true); parts.push({ k: r.k, inner: true, x: CX, y: CY, ...pl, r: 0, tr: sizeOf(r.v, r.c), mine: true, st: status(r.p), ph: Math.random() * 6, ping: performance.now() });
-    }, j * (REPLAY ? 6 : 8)));
+    scene = { id: "foot", t0: now() };
+    SCAN.ranked.slice().sort((a, b) => b.v - a.v).slice(0, 220).forEach((r, j) => setTimeout(() => { const p = addPart(r.k, r.v, true, r.p <= 20, status(r.p), { x: CX, y: CY }); p.ping = now(); }, j * (REPLAY ? 6 / SPEED : 8)));
   }
-  function market() {
-    const have = new Set(parts.map(p => p.k)); const rk = {}; SCAN.ranked.forEach(r => rk[r.k] = r.p);
+  function brain(toksList) { aiCore = 1; scene = { id: "brain", t0: now(), toks: (toksList || []).slice(0, 16), biz: null }; }
+  function brainDone() { if (!scene || scene.id !== "brain") brain([]); scene.biz = (SCAN.ai && SCAN.ai.biz) || "Business identified from its rankings"; scene.svc = (SCAN.ai && SCAN.ai.services) || []; scene.bizAt = now(); }
+  function market(seeds) { aiCore = 0; scene = { id: "market", t0: now(), seeds, doneAt: 0 }; probes = seeds.map((s, j) => ({ a: (j / Math.max(1, seeds.length)) * Math.PI * 2 - Math.PI / 2, t: now() + j * 120 })); }
+  function marketDone(extra) {
+    if (scene && scene.id === "market") scene.doneAt = now();
+    const rk = {}; SCAN.ranked.forEach(r => rk[r.k] = r.p);
+    const list = [...SCAN.universe, ...(extra || [])];
     let n = 0, val = 0;
-    SCAN.universe.forEach((u, j) => {
-      if (have.has(u.k)) return;
-      setTimeout(() => {
-        const pl = place(u.k, false); const ang = Math.random() * 7;
-        const p = rk[u.k];
-        parts.push({ k: u.k, x: CX + Math.cos(ang) * RAD * 2, y: CY + Math.sin(ang) * RAD * 2, ...pl, r: 0, tr: sizeOf(u.v, u.c), mine: !!(p && p <= 20), st: status(p), ph: Math.random() * 6 });
-        n++; val += u.v * SUM10 * (u.c || 0);
-        if (j % 7 === 0) { $("#cSearch").textContent = fmt(n + have.size); $("#cValue").textContent = money(val); }
-      }, j * (REPLAY ? 2 : 3));
-    });
-    setTimeout(() => setTopics(), Math.min(1600, SCAN.universe.length * (REPLAY ? 2 : 3)) + 300);
-    setTimeout(() => { $("#cSearch").textContent = fmt(SCAN.universe.length); $("#cValue").textContent = money(SCAN.universe.reduce((a, u) => a + u.v * SUM10 * (u.c || 0), 0)); }, SCAN.universe.length * 3 + 100);
+    list.forEach((u, j) => setTimeout(() => { if (byK[u.k]) return; const p = rk[u.k]; addPart(u.k, u.v, false, !!(p && p <= 20), status(p)); n++; val += u.v * SUM10; if (j % 9 === 0) { $("#cSearch").textContent = fmt(n); $("#cValue").textContent = fmt(val); } }, j * (REPLAY ? 2 / SPEED : 3)));
+    setTimeout(() => { probes = []; setTopics(); $("#cSearch").textContent = fmt(SCAN.universe.length); tween($("#cValue"), SCAN.universe.reduce((a, u) => a + u.v * SUM10, 0), fmt, 900); }, Math.min(1800, list.length * 3) + 300);
+  }
+  function filter(list) { scene = { id: "filter", t0: now() }; aiCore = 1; rows = list.map(x => ({ k: x.k, st: null })); }
+  function filterMark(k, ok, why) {
+    const r = rows.find(x => x.k === k && x.st == null); if (r) { r.st = ok; r.why = why; r.at = now(); }
+    const p = byK[k]; if (p) { if (ok) p.keep = now(); else { p.gone = 1; p.vy = -1.5; } }
   }
   function local() {
+    aiCore = 0; scene = { id: "local", t0: now() };
     const m = {}; SCAN.universe.forEach(u => m[u.k] = u);
-    parts.forEach(p => { const u = m[p.k]; p.tr = u ? sizeOf(u.v * 20, u.c) : 0.4; });
-    $("#cSearch").textContent = fmt(SCAN.universe.length);
-    tween($("#cValue"), SCAN.universe.reduce((a, u) => a + u.v * SUM10 * (u.c || 0), 0), money);
+    parts.forEach(p => { const u = m[p.k]; if (!p.gone) p.tr = u ? sizeOf(u.v * 25) : 0.6; });
+    tween($("#cValue"), SCAN.universe.reduce((a, u) => a + u.v * SUM10, 0), fmt, 1200);
+    setTopics();
   }
   function comp() {
-    const byK = {}; parts.forEach(p => byK[p.k] = p);
+    aiCore = 0;
+    const R0 = compute(SCAN);
+    const list = R0.comps.slice(0, mob ? 6 : 7).map(c => ({ d: c.d, v: c.clicks }));
+    list.push({ d: SCAN.domain, v: R0.you.bClicks, me: true }); list.sort((a, b) => b.v - a.v);
+    scene = { id: "comp", t0: now(), list };
+    parts.forEach(p => { if (p.gone) p.a = 0; });
+    const idx = {}; SCAN.universe.forEach((u, i) => idx[i] = u.k);
     SCAN.comps.slice(0, 7).forEach((c, j) => setTimeout(() => {
-      const own = Object.entries(c.pos).filter(([i, p]) => p <= 3).map(([i]) => byK[SCAN.universe[i]?.k]).filter(Boolean).slice(0, 60);
+      const own = Object.entries(c.pos).filter(([i, p]) => p <= 3).map(([i]) => byK[idx[i]]).filter(Boolean).slice(0, 60);
       comps.push({ d: c.d, a: (j / 7) * Math.PI * 2 - 1.2, r: 5 + Math.min(9, own.length / 6), own, x: CX, y: CY });
-    }, j * 260));
+    }, j * 260 / (REPLAY ? SPEED : 1)));
   }
-  function serpTile(s) {
-    tiles.push({ ...s, t: performance.now() });
-    const p = parts.find(q => q.k === s.k); if (p) p.ping = performance.now();
+  function serpTile(s) { if (!scene || scene.id !== "serp") scene = { id: "serp", t0: now() }; tiles.push({ ...s, t: now() }); const p = byK[s.k]; if (p) p.ping = now(); }
+  function gapStart() { scene = { id: "gap", t0: now() }; gapList = []; }
+  async function gap() {
+    if (!scene || scene.id !== "gap") gapStart();
+    phase = 1;
+    const st = {}; R.items.forEach(x => st[x.k] = x);
+    parts.forEach(p => { const x = st[p.k]; p.mine = !!(x && ((x.p && x.p <= 20) || x.pk)); if (x) p.st = x.st; });
+    // rebuild planets from final competitor list with AI types
+    const top = R.comps.slice(0, 7);
+    comps = top.map((c, j) => { const own = Object.entries(c.pos).filter(([i, q]) => q <= 10 && !(R.items[i].p && R.items[i].p <= 10)).map(([i]) => byK[R.items[i].k]).filter(Boolean).slice(0, 80); return { d: c.d, type: c.type, typeAt: now() + 600 + j * 200, a: (j / top.length) * Math.PI * 2 - 1.2, r: 5 + Math.min(10, own.length / 6), own, x: CX, y: CY }; });
+    gapList = R.comps.slice().sort((a, b) => b.ownClicks - a.ownClicks).slice(0, mob ? 4 : 6).map(c => ({ d: c.d, type: c.type, own: c.own, ownClicks: c.ownClicks }));
+    scene.t0 = Math.min(scene.t0, now());
+    tween($("#cValue"), R.market.clicks, fmt, 1200);
+    tween($("#cTable"), R.missing.clicks, fmt, 2200);
+    $("#cTableL").textContent = "visits/mo going to others";
+    await sleep(REPLAY ? 2600 / SPEED : 3200);
   }
-  async function table() {
-    tablePhase = 1;
-    const mine = new Set(R.items.filter(x => x.p && x.p <= 20).map(x => x.k));
-    const st = {}; R.items.forEach(x => st[x.k] = x.st);
-    parts.forEach(p => { p.mine = mine.has(p.k); p.st = st[p.k] || p.st; });
-    tween($("#cTable"), R.table.value || R.table.clicks, R.table.value ? money : fmt, 2200);
-    await sleep(REPLAY ? 2000 / SPEED : 2400);
+  function proj(sc) {
+    scene = { id: "proj", t0: now(), sc }; phase = 2;
+    const gold = parts.filter(p => !p.mine && !p.gone).sort((a, b) => b.v - a.v);
+    const frac = Math.min(0.9, R.table.clicks ? sc.gain / R.table.clicks : 0.2);
+    const n = Math.max(1, Math.round(gold.length * Math.max(0.08, frac)));
+    gold.slice(0, n).forEach((p, j) => setTimeout(() => { p.won = 1; p.ping = now(); }, 400 + j * (3000 / n) / (REPLAY ? SPEED : 1)));
+    $("#cTableL").textContent = "+ visits/mo in 12 months";
+    setTimeout(() => tween($("#cTable"), sc.gain, v => "+" + fmt(v), 2600), 300);
   }
-  return { start, stop, foot, market, local, comp, serpTile, table };
+  return { start, stop, foot, brain, brainDone, market, marketDone, filter, filterMark, local, comp, serpTile, gapStart, gap, proj };
 })();
 
 function tween(el, to, f = fmt, ms = 1400) {
@@ -657,7 +927,8 @@ function tween(el, to, f = fmt, ms = 1400) {
 
 function openOverlay() {
   $("#scan").classList.add("on"); $("#scDone").classList.remove("on"); $("#log").innerHTML = "";
-  $("#cSearch").textContent = "0"; $("#cValue").textContent = "$0"; $("#cTable").textContent = "–"; $("#scCost").textContent = "$0.000";
+  $("#cSearch").textContent = "0"; $("#cValue").textContent = "0"; $("#cTable").textContent = "–"; $("#scCost").textContent = "$0.000";
+  $("#cTableL").textContent = "visits/mo going to others";
   $("#scDomain").textContent = SCAN.domain;
   $("#scMarket").textContent = (SCAN.keyword ? " · " + SCAN.keyword : "") + " · " + SCAN.location.label;
   $("#scSpeed").style.display = REPLAY ? "" : "none"; $("#scSkip").style.display = REPLAY ? "" : "none";
@@ -668,9 +939,10 @@ function openOverlay() {
 }
 function closeOverlay() { VIZ.stop(); $("#scan").classList.remove("on"); document.body.style.overflow = ""; }
 function finishOverlay() {
+  const sc = scenarios(R).exp;
   $("#scSteps").querySelectorAll("div").forEach(d => d.className = "done");
-  $("#sdVal").textContent = R.table.value ? money(R.table.value) + "/mo" : "+" + fmt(R.table.clicks) + " visits/mo";
-  $("#sdTxt").innerHTML = `left on the table for <b>${esc(SCAN.domain)}</b>: <b>+${fmt(R.table.clicks)}</b> visits a month you could win by reaching the top 3 across this market.`;
+  $("#sdVal").textContent = "+" + fmt(sc.gain) + " visits/mo";
+  $("#sdTxt").innerHTML = `a realistic 12-month gain for <b>${esc(SCAN.domain)}</b>, from ${fmt(R.you.clicks)} to <b>${fmt(sc.months[12].clicks)}</b> visits a month. Competitors take <b>${fmt(R.missing.clicks)}</b> visits a month in this market today.${sc.gainVal ? ` <span style="color:var(--dim)">Click value: ${money(sc.gainVal)}/mo.</span>` : ""}`;
   $("#scDone").classList.add("on");
 }
 function toggleSpeed() { SPEED = SPEED === 1 ? 2 : SPEED === 2 ? 4 : 1; $("#scSpeed").textContent = "Speed " + SPEED + "×"; }
@@ -678,21 +950,32 @@ function skipScan() { SKIP = true; }
 
 async function replay(scan) {
   SCAN = JSON.parse(JSON.stringify(scan)); REPLAY = true; SKIP = false;
-  SCAN.serps = SCAN.serps || []; SCAN.youPos = SCAN.youPos || {};
+  SCAN.serps = SCAN.serps || []; SCAN.youPos = SCAN.youPos || {}; SCAN.dropped = SCAN.dropped || [];
   const serps = SCAN.serps; SCAN.serps = [];
   openOverlay();
   let cost = 0;
+  const lines = id => (SCAN.log || []).filter(l => l[0] === id);
+  const play = async (id, dur) => { const ls = lines(id); for (const l of ls) { if (SKIP) return; log(l[2], l[1], false); const m = l[2].match(/\$([\d.]+)/); if (l[2].startsWith("→") && m) { cost += +m[1]; $("#scCost").textContent = "$" + cost.toFixed(3); } await sleep(dur / Math.max(2, ls.length + 1)); } };
   for (const s of activeSteps()) {
     if (SKIP) break;
     stepUI(s.id);
-    const lines = (SCAN.log || []).filter(l => l[0] === s.id);
-    const calls = (SCAN.calls || []);
-    const dur = Math.max(1.6, Math.min(4.2, (SCAN.durations?.[s.id] || 2))) * 1000 / SPEED;
-    if (s.id === "foot") VIZ.foot(); if (s.id === "market") VIZ.market(); if (s.id === "local") VIZ.local(); if (s.id === "comp") VIZ.comp();
-    if (s.id === "serp") { for (const x of serps) { if (SKIP) break; SCAN.serps.push(x); VIZ.serpTile(x); await sleep(dur / Math.max(1, serps.length)); } }
-    if (s.id === "table") { R = compute(SCAN); VIZ.table(); }
-    for (const l of lines) { if (SKIP) break; log(l[2], l[1], false); if (l[2].startsWith("→")) { const m = l[2].match(/\$([\d.]+)/); if (m) { cost += +m[1]; $("#scCost").textContent = "$" + cost.toFixed(3); } } await sleep(dur / Math.max(2, lines.length + 1)); }
-    if (s.id !== "serp") await sleep(dur / 3);
+    const dur = Math.max(s.min, Math.min(s.min + 3, SCAN.durations?.[s.id] || s.min)) * 1000 / SPEED;
+    const t0 = performance.now();
+    if (s.id === "foot") { VIZ.foot(); await play(s.id, dur * 0.8); }
+    else if (s.id === "brain") { VIZ.brain(SCAN.ranked.slice().sort((a, b) => b.v - a.v).slice(0, 16).map(r => r.k)); await sleep(dur * 0.35); VIZ.brainDone(); await play(s.id, dur * 0.5); }
+    else if (s.id === "market") { VIZ.market((SCAN.aiSeeds && SCAN.aiSeeds.length ? SCAN.aiSeeds : SCAN.seeds.length ? SCAN.seeds : [SCAN.domain]).slice(0, 6)); await sleep(dur * 0.3); VIZ.marketDone(SCAN.dropped); await play(s.id, dur * 0.5); }
+    else if (s.id === "filter") {
+      const all = [...SCAN.universe.map(u => ({ k: u.k, v: u.v, ok: true })), ...SCAN.dropped.map(d => ({ k: d.k, v: d.v, ok: false, why: d.why }))].sort((a, b) => b.v - a.v).slice(0, 160);
+      VIZ.filter(all); const per = dur * 0.85 / all.length;
+      for (const x of all) { if (SKIP) break; VIZ.filterMark(x.k, x.ok, x.why); await sleep(per); }
+      await play(s.id, dur * 0.15);
+    }
+    else if (s.id === "local") { VIZ.local(); await play(s.id, dur * 0.8); }
+    else if (s.id === "comp") { VIZ.comp(); await play(s.id, dur * 0.8); }
+    else if (s.id === "serp") { for (const x of serps) { if (SKIP) break; SCAN.serps.push(x); VIZ.serpTile(x); await sleep(dur / Math.max(1, serps.length)); } await play(s.id, 400); }
+    else if (s.id === "gap") { SCAN.serps = serps; R = compute(SCAN); VIZ.gapStart(); await VIZ.gap(); await play(s.id, dur * 0.4); }
+    else if (s.id === "proj") { VIZ.proj(scenarios(R).exp); await play(s.id, dur * 0.4); }
+    const rest = dur - (performance.now() - t0); if (rest > 0 && !SKIP) await sleep(rest);
   }
   SCAN.serps = serps;
   R = compute(SCAN);
@@ -710,14 +993,15 @@ function showResults(instant) {
   const S = SCAN, Rr = R;
   $("#rFav").src = fav(S.domain); $("#rDomain").textContent = S.domain;
   $("#rSub").textContent = `${S.keyword ? "Market: " + S.keyword : "Market: searches related to the site"} · ${S.location.label}${S.location.region && S.localFailed ? " (national volumes)" : ""} · scanned ${new Date(S.date).toLocaleDateString()}`;
-  const pct = (Rr.you.share * 100);
-  $("#rHeadline").innerHTML = `${esc(S.domain)} captures <span class="gr">${pct < 1 ? pct.toFixed(1) : Math.round(pct)}%</span> of the clicks in this market. Reaching the top 3 across it is worth <span class="gd">+${fmt(Rr.table.clicks)} visits</span>${Rr.table.value ? ` and <span class="gd">${money(Rr.table.value)}</span> in click value` : ""} a month.`;
-  countUp("#kYou", Rr.you.clicks, fmt); $("#kYouS").innerHTML = `visits/mo from this market · worth <b>${money(Rr.you.value)}</b>/mo at ad prices · <b>${Rr.you.kw3}</b> searches in the top 3`;
-  countUp("#kMarket", Rr.market.clicks, fmt); $("#kMarketS").innerHTML = `organic clicks/mo across <b>${fmt(Rr.items.length)}</b> searches (${fmt(Rr.searches)} searches/mo) · worth <b>${money(Rr.market.value)}</b>`;
-  countUp("#kTable", Rr.table.value || Rr.table.clicks, Rr.table.value ? money : fmt); $("#kTableS").innerHTML = `<b>+${fmt(Rr.table.clicks)}</b> visits/mo if you reached the top 3 on every search here · ${Rr.items.filter(x => x.st === "close").length} already within striking distance`;
+  const sc = scenarios(Rr).exp, pctS = Rr.market.clicks ? 100 * Rr.you.clicks / Rr.market.clicks : 0;
+  $("#rHeadline").innerHTML = `${esc(S.domain)} gets <span class="gr">${fmt(Rr.you.clicks)} visits</span> a month from this market. Competitors take <span style="color:var(--red)">${fmt(Rr.missing.clicks)}</span>. A realistic 12-month plan adds <span class="gd">+${fmt(sc.gain)} visits</span> a month.`;
+  countUp("#kYou", Rr.you.clicks, fmt); $("#kYouS").innerHTML = `visits/mo · <b>${pctS < 1 ? pctS.toFixed(1) : Math.round(pctS)}%</b> of the market · <b>${Rr.you.kw3}</b> searches in the top 3 <span class="dimv">· ${money(Rr.you.value)} click value</span>`;
+  countUp("#kMarket", Rr.missing.clicks, fmt); $("#kMarketS").innerHTML = `visits/mo of <b>${fmt(Rr.market.clicks)}</b> in this market · <b>${fmt(Rr.notYours.n)}</b> searches where you're not on page one <span class="dimv">· ${money(Rr.missing.value)}</span>`;
+  countUp("#kTable", sc.gain, v => "+" + fmt(v)); $("#kTableS").innerHTML = `visits/mo by month 12 (${Rr.you.clicks > 0 ? "+" + Math.round(100 * sc.gain / Rr.you.clicks) + "%" : "from zero"}) · full potential <b>+${fmt(Rr.table.clicks)}</b> at top 3 everywhere <span class="dimv">· ${money(sc.gainVal)}/mo</span>`;
+  renderAI();
   // share bar
   const top5 = Rr.comps.slice(0, 5), tot = Rr.basis.clicks || 1;
-  const segs = [{ l: "You", v: Rr.you.bClicks, c: "#3ee08f" }, ...top5.map((c, j) => ({ l: c.d, v: c.clicks, c: ["#ff6b7d", "#ff8a6b", "#f472b6", "#c084fc", "#818cf8"][j] })), { l: "Everyone else", v: Rr.rest, c: "#26344c" }];
+  const segs = [{ l: "You", v: Rr.you.bClicks, c: "#3ee98a" }, ...top5.map((c, j) => ({ l: c.d, v: c.clicks, c: ["#ff5d6c", "#ff8a3d", "#ff4fa8", "#c084fc", "#818cf8"][j] })), { l: "Everyone else", v: Rr.rest, c: "#2a2e58" }];
   $("#bar3").innerHTML = segs.map(s => `<i style="background:${s.c}" data-w="${100 * s.v / tot}">${100 * s.v / tot > 7 ? `<span>${esc(s.l)} ${Math.round(100 * s.v / tot)}%</span>` : ""}</i>`).join("");
   $("#bar3l").innerHTML = segs.map(s => `<span><i style="background:${s.c}"></i>${esc(s.l)} · ${(100 * s.v / tot).toFixed(1)}%</span>`).join("");
   $("#pieTot").textContent = Rr.basis.local ? `${Rr.basis.n} top searches, live in ${SCAN.location.city || SCAN.location.region} · ${fmt(tot)} clicks/mo` : fmt(tot) + " organic clicks / month";
@@ -727,6 +1011,17 @@ function showResults(instant) {
   setTimeout(() => UNI.init(), 60);
 }
 function countUp(sel, to, f) { tween($(sel), to, f, 1600); }
+function renderAI() {
+  const A = SCAN.ai, box = $("#aiBox");
+  if (!A || !A.biz) { box.style.display = "none"; return; }
+  const nm = { geo: "other locations", job: "jobs & careers", brand: "brand names", off: "off-topic" };
+  const by = {}; (SCAN.dropped || []).forEach(d => by[d.why] = (by[d.why] || 0) + 1);
+  const types = A.types || {}, nd = Object.values(types).filter(t => t === "direct").length;
+  box.style.display = "";
+  box.innerHTML = `<div class="ah"><i>AI</i>AI analyst · ${esc(A.model || "")}</div><div class="biz">${esc(A.biz)}</div>${A.takeaway ? `<p class="tk">${esc(A.takeaway)}</p>` : ""}${A.moves && A.moves.length ? `<ol>${A.moves.map(m => `<li>${esc(m)}</li>`).join("")}</ol>` : ""}
+  <div class="chips">${(A.services || []).map(s => `<span class="chip2 v">${esc(s)}</span>`).join("")}</div>
+  <details><summary>AI kept <b>${fmt(SCAN.universe.length)}</b> of ${fmt(SCAN.aiChecked || SCAN.universe.length + (SCAN.dropped || []).length)} searches as relevant${Object.keys(by).length ? " · dropped " + Object.entries(by).map(([k, n]) => `${n} ${nm[k] || k}`).join(", ") : ""}${Object.keys(types).length ? ` · ${nd} of ${Object.keys(types).length} top competitors are direct competitors` : ""}</summary><div class="drop">${(SCAN.dropped || []).slice(0, 80).map(d => `<span title="${esc(nm[d.why] || d.why)}">${esc(d.k)}</span>`).join("")}</div></details>`;
+}
 
 function renderComps() {
   const Rr = R, list = Rr.comps.slice(0, 10);
@@ -738,22 +1033,22 @@ function renderComps() {
   $("#compList").innerHTML = rows.slice(0, 11).map(r => {
     if (!r.me) n++;
     const rank = r.me ? (Rr.you.bClicks > 0 ? Rr.you.rank : null) : (Rr.you.bClicks > 0 && n >= Rr.you.rank ? n + 1 : n);
-    return `<div class="crow ${r.me ? "me" : ""}"><div class="n">${rank ? "#" + rank : "–"}</div><div class="d"><b><img src="${fav(r.d)}" alt="">${esc(r.d)} ${r.me ? '<span class="tag you">you</span>' : r.platform ? '<span class="tag">platform</span>' : ""}</b><div class="track"><i data-w="${100 * r.clicks / max}"></i></div></div><div class="m">${fmt(r.clicks)}<span>visits/mo</span></div><div class="m">${(r.share * 100).toFixed(1)}%<span>${r.kw3} top-3${r.packs ? " · " + r.packs + " map" : " · " + r.kw10 + " pg 1"}</span></div></div>`;
+    return `<div class="crow ${r.me ? "me" : ""}"><div class="n">${rank ? "#" + rank : "–"}</div><div class="d"><b><img src="${fav(r.d)}" alt="">${esc(r.d)} ${r.me ? '<span class="tag you">you</span>' : r.type ? `<span class="tag ${r.type}">${r.type}</span>` : ""}</b><div class="track"><i data-w="${100 * r.clicks / max}"></i></div></div><div class="m">${fmt(r.clicks)}<span>visits/mo</span></div><div class="m">${(r.share * 100).toFixed(1)}%<span>${r.me ? r.kw3 + " top-3" : fmt(r.own) + " kw you lack"}</span></div></div>`;
   }).join("");
   setTimeout(() => document.querySelectorAll("#compList .track i").forEach(i => i.style.width = Math.max(0.5, +i.dataset.w) + "%"), 200);
   const lead = Rr.comps[0];
   const basisTxt = Rr.basis.local ? ` Measured on the ${Rr.basis.n} most valuable searches, checked live from ${esc(SCAN.location.city || SCAN.location.region)} including the map pack (${Math.round(Rr.basis.pct * 100)}% of the market's value).` : "";
   $("#compLd").innerHTML = (lead ? `<b>${esc(lead.d)}</b> leads this market with about ${fmt(lead.clicks)} visits a month (${(lead.share * 100).toFixed(1)}% of clicks). ${Rr.you.bClicks <= 0 ? "You don't show up in these results yet." : Rr.you.rank <= 10 ? `You're #${Rr.you.rank}.` : `You're #${Rr.you.rank} among the sites we found.`}` : "") + basisTxt;
   // donut
-  const segs = [{ l: "You", v: Rr.you.bClicks, c: "#3ee08f" }, ...Rr.comps.slice(0, 5).map((c, j) => ({ l: c.d, v: c.clicks, c: ["#ff6b7d", "#ff8a6b", "#f472b6", "#c084fc", "#818cf8"][j] })), { l: "Everyone else", v: Rr.rest, c: "#26344c" }];
+  const segs = [{ l: "You", v: Rr.you.bClicks, c: "#3ee98a" }, ...Rr.comps.slice(0, 5).map((c, j) => ({ l: c.d, v: c.clicks, c: ["#ff5d6c", "#ff8a3d", "#ff4fa8", "#c084fc", "#818cf8"][j] })), { l: "Everyone else", v: Rr.rest, c: "#2a2e58" }];
   const tot = segs.reduce((a, s) => a + s.v, 0) || 1;
   const svg = d3.select("#donut"); svg.selectAll("*").remove();
   const g = svg.append("g").attr("transform", "translate(130,130)");
   const arc = d3.arc().innerRadius(78).outerRadius(118).cornerRadius(3).padAngle(0.012);
   const pie = d3.pie().sort(null).value(d => d.v)(segs);
   g.selectAll("path").data(pie).enter().append("path").attr("fill", d => d.data.c).transition().duration(1400).delay((d, i) => i * 120).attrTween("d", d => { const i = d3.interpolate({ startAngle: d.startAngle, endAngle: d.startAngle }, d); return t => arc(i(t)); });
-  g.append("text").attr("text-anchor", "middle").attr("y", -4).attr("fill", "#3ee08f").attr("font-size", 32).attr("font-weight", 900).text(((Rr.you.share) * 100).toFixed(Rr.you.share < 0.1 ? 1 : 0) + "%");
-  g.append("text").attr("text-anchor", "middle").attr("y", 18).attr("fill", "#8796ab").attr("font-size", 11).attr("font-family", "JetBrains Mono").text("your share of clicks");
+  g.append("text").attr("text-anchor", "middle").attr("y", -4).attr("fill", "#3ee98a").attr("font-size", 32).attr("font-weight", 900).text(((Rr.you.share) * 100).toFixed(Rr.you.share < 0.1 ? 1 : 0) + "%");
+  g.append("text").attr("text-anchor", "middle").attr("y", 18).attr("fill", "#7a7fae").attr("font-size", 11).attr("font-family", "JetBrains Mono").text("your share of clicks");
   $("#donutL").innerHTML = segs.map(s => `<div><span><i style="background:${s.c}"></i>${esc(s.l)}</span><b>${(100 * s.v / tot).toFixed(1)}%</b></div>`).join("");
 }
 
@@ -769,14 +1064,14 @@ function renderTopics() {
   const Rr = R;
   $("#topics").innerHTML = Rr.topics.slice(0, 9).map(t => {
     const ys = Math.min(100, t.share * 100), ls = Math.min(100 - ys, t.leadShare * 100);
-    return `<div class="card topic"><h4>${esc(t.name)}${t.core ? ' <span class="tag">core</span>' : ""}</h4><div class="meta">${fmt(t.n)} searches · ${fmt(t.searches)}/mo · ${money(t.value)} market</div>
-    <div class="big"><b>${t.potVal ? money(t.potVal) : "+" + fmt(t.pot)}</b><span>${t.potVal ? "+" + fmt(t.pot) + " visits/mo on the table" : "visits/mo on the table"}</span></div>
+    return `<div class="card topic"><h4>${esc(t.name)}${t.core ? ' <span class="tag">core</span>' : ""}</h4><div class="meta">${fmt(t.n)} searches · ${fmt(t.clicks)} visits/mo in play</div>
+    <div class="big"><b>+${fmt(t.pot)}</b><span>visits/mo open${t.potVal ? " · " + money(t.potVal) : ""}</span></div>
     <div class="sbar"><i style="width:${ys}%;background:var(--green)"></i><i style="width:${ls}%;background:var(--red)"></i></div>
     <div class="own"><span>you ${ys.toFixed(ys < 1 ? 1 : 0)}%</span><b>${t.lead ? "leader: " + esc(t.lead.d) + " " + Math.round(ls) + "%" : "no clear leader"}</b></div></div>`;
   }).join("");
 }
 
-let SORT = { k: "potVal", dir: -1 }, TAB = "all", SHOWALL = false;
+let SORT = { k: "pot", dir: -1 }, TAB = "all", SHOWALL = false;
 function renderTable(tab) {
   if (tab) TAB = tab;
   document.querySelectorAll("#oTabs button").forEach(b => b.classList.toggle("on", b.dataset.v === TAB));
@@ -786,7 +1081,7 @@ function renderTable(tab) {
   else if (TAB === "mine") xs = xs.filter(x => x.p && x.p <= 3);
   else xs = xs.filter(x => x.pot > 0);
   const anyVal = R.items.some(x => x.c > 0);
-  const key = SORT.k === "potVal" && !anyVal ? "pot" : SORT.k;
+  const key = SORT.k;
   xs.sort((a, b) => { const d = (a[key] ?? -1) - (b[key] ?? -1); return SORT.dir < 0 ? -d : d; });
   const lim = innerWidth < 700 && !SHOWALL ? 15 : 80;
   const cols = [["k", "Search"], ["topic", "Topic"], ["v", "Searches/mo"], ["c", "CPC"], ["d", "Difficulty"], ["p", "You"], ["lead", "#1 right now"], ["pot", "+ Visits/mo"], ["potVal", "+ Value/mo"]];
@@ -803,7 +1098,7 @@ function renderMethod() {
 
 /* ---------- universe chart ---------- */
 const UNI = (() => {
-  let cv, ctx, W, H, D, nodes = [], groups = [], filt = "all", sizeBy = "value", raf, hover = null;
+  let cv, ctx, W, H, D, nodes = [], groups = [], filt = "all", sizeBy = "vol", raf, hover = null;
   function init() {
     cv = $("#uni"); ctx = cv.getContext("2d");
     document.querySelectorAll("#uFilter button").forEach(b => b.onclick = () => { filt = b.dataset.v; document.querySelectorAll("#uFilter button").forEach(x => x.classList.toggle("on", x === b)); });
@@ -816,8 +1111,8 @@ const UNI = (() => {
     let lastW = innerWidth; window.addEventListener("resize", () => { if (Math.abs(innerWidth - lastW) < 2) return; lastW = innerWidth; resize(); layout(false); });
   }
   function resize() { D = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); }
-  const GC = ["#5b8cff", "#4fd1e8", "#a78bfa", "#f472b6", "#ff8a6b", "#2dd4bf", "#818cf8", "#e879f9", "#60a5fa", "#fb7185", "#34d399", "#c084fc", "#38bdf8", "#f59e0b", "#a3e635", "#94a3b8"];
-  function subText(g) { return `${g.n} searches · ${g.isVal ? money(g.pot) : "+" + fmt(g.pot)} open`; }
+  const GC = ["#2fd0ff", "#2fd0ff", "#9b8cff", "#ff4fa8", "#ff8a3d", "#2dd4bf", "#818cf8", "#e879f9", "#60a5fa", "#fb7185", "#34d399", "#c084fc", "#38bdf8", "#f59e0b", "#a3e635", "#94a3b8"];
+  function subText(g) { return `${g.n} searches · +${fmt(g.pot)} visits open`; }
   function pillW(g) { ctx.font = "800 11.5px JetBrains Mono"; const a = ctx.measureText(g.name.toUpperCase()).width + 28; ctx.font = "500 10.5px JetBrains Mono"; return Math.max(a, ctx.measureText(subText(g)).width + 20); }
   function layout(first) {
     const xs = R.items.slice().sort((a, b) => b.mkVal - a.mkVal).slice(0, 750);
@@ -832,7 +1127,7 @@ const UNI = (() => {
     gs.forEach(g => g.children.forEach(c => c.value = Math.pow(Math.max(c.raw, mxRaw * 0.0015), 0.5)));
     gs.forEach(g => g.sum = g.children.reduce((a, c) => a + c.value, 0));
     gs.sort((a, b) => b.sum - a.sum);
-    groups = gs.map((c, j) => { const t = R.topics.find(q => q.name === c.name); return { name: c.name, col: GC[j % GC.length], n: c.children.length, val: t ? t.value : 0, pot: t ? (t.potVal || t.pot) : 0, isVal: !!(t && t.potVal), data: c }; });
+    groups = gs.map((c, j) => { const t = R.topics.find(q => q.name === c.name); return { name: c.name, col: GC[j % GC.length], n: c.children.length, val: t ? t.value : 0, pot: t ? t.pot : 0, isVal: false, data: c }; });
     const prev = {}; nodes.forEach(n => prev[n.x0.k] = n);
     const leaves = [];
     if (true) {
@@ -886,19 +1181,19 @@ const UNI = (() => {
       n.x += (n.tx - n.x) * 0.09; n.y += (n.ty - n.y) * 0.09; n.r += (n.tr - n.r) * 0.09;
       const x = n.x0, show = filt === "all" || (filt === "miss" ? (!x.p || x.p > 3) : (x.p && x.p <= 20));
       ctx.globalAlpha = show ? 1 : 0.08;
-      if (x.st === "none") { ctx.fillStyle = "#0f1726"; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(0.5, n.r - 0.5), 0, 7); ctx.fill(); const ga = ctx.globalAlpha; ctx.globalAlpha = ga * 0.28; ctx.fillStyle = n.col || "#26344c"; ctx.fill(); ctx.globalAlpha = ga; ctx.strokeStyle = filt === "miss" ? `rgba(251,191,36,${0.55 + 0.3 * Math.sin(t / 400 + n.tx)})` : "rgba(251,191,36,.32)"; ctx.lineWidth = 1; ctx.stroke(); }
+      if (x.st === "none") { ctx.fillStyle = "#141735"; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(0.5, n.r - 0.5), 0, 7); ctx.fill(); const ga = ctx.globalAlpha; ctx.globalAlpha = ga * 0.28; ctx.fillStyle = n.col || "#2a2e58"; ctx.fill(); ctx.globalAlpha = ga; ctx.strokeStyle = filt === "miss" ? `rgba(255,193,59,${0.55 + 0.3 * Math.sin(t / 400 + n.tx)})` : "rgba(255,193,59,.32)"; ctx.lineWidth = 1; ctx.stroke(); }
       else { ctx.fillStyle = COLORS[x.st]; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(0.5, n.r - 0.5), 0, 7); ctx.fill(); }
       if (n === hover) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 2, 0, 7); ctx.stroke(); }
-      if (n.r > 22 && show && Math.abs(n.r - n.tr) < 2) { const fs = Math.min(12.5, Math.max(8.5, n.r / 3.6)); ctx.font = `600 ${fs}px Inter`; ctx.textAlign = "center"; ctx.fillStyle = x.st === "none" ? "#c6d2e2" : "#05080e"; let w = x.k; const maxW = n.r * 1.7; while (w.length > 4 && ctx.measureText(w).width > maxW) w = w.slice(0, -2); if (w !== x.k) w = w.slice(0, -1) + "…"; ctx.fillText(w, n.x, n.y + 2); ctx.font = `500 ${fs * 0.85}px JetBrains Mono`; ctx.globalAlpha *= .75; ctx.fillText(x.mkVal ? money(x.mkVal) : fmt(x.v), n.x, n.y + 2 + fs * 1.2); }
+      if (n.r > 22 && show && Math.abs(n.r - n.tr) < 2) { const fs = Math.min(12.5, Math.max(8.5, n.r / 3.6)); ctx.font = `600 ${fs}px "Instrument Sans"`; ctx.textAlign = "center"; ctx.fillStyle = x.st === "none" ? "#b3b7e0" : "#0a0b19"; let w = x.k; const maxW = n.r * 1.7; while (w.length > 4 && ctx.measureText(w).width > maxW) w = w.slice(0, -2); if (w !== x.k) w = w.slice(0, -1) + "…"; ctx.fillText(w, n.x, n.y + 2); ctx.font = `500 ${fs * 0.85}px JetBrains Mono`; ctx.globalAlpha *= .75; ctx.fillText(x.mkVal ? money(x.mkVal) : fmt(x.v), n.x, n.y + 2 + fs * 1.2); }
     });
     ctx.globalAlpha = 1;
     groups.forEach((g, j) => {
       const L = g.lab; if (!L) return; const a = Math.min(1, Math.max(0, (t - g.born - 300 - j * 90) / 500)); if (!a) return;
-      ctx.globalAlpha = a; ctx.fillStyle = "rgba(6,10,18,.9)"; ctx.strokeStyle = g.col; ctx.lineWidth = 1;
+      ctx.globalAlpha = a; ctx.fillStyle = "rgba(10,11,25,.9)"; ctx.strokeStyle = g.col; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(L.x, L.y, L.w, L.h, 8) : ctx.rect(L.x, L.y, L.w, L.h); ctx.fill(); ctx.stroke();
       ctx.fillStyle = g.col; ctx.fillRect(L.x + 8, L.y + 9, 6, 6);
-      ctx.textAlign = "left"; ctx.font = "800 11.5px JetBrains Mono"; ctx.fillStyle = "#ecf2fa"; ctx.fillText(g.name.toUpperCase(), L.x + 19, L.y + 15);
-      ctx.font = "500 10.5px JetBrains Mono"; ctx.fillStyle = "#8796ab"; ctx.fillText(subText(g), L.x + 9, L.y + 27);
+      ctx.textAlign = "left"; ctx.font = "800 11.5px JetBrains Mono"; ctx.fillStyle = "#f3f4ff"; ctx.fillText(g.name.toUpperCase(), L.x + 19, L.y + 15);
+      ctx.font = "500 10.5px JetBrains Mono"; ctx.fillStyle = "#7a7fae"; ctx.fillText(subText(g), L.x + 9, L.y + 27);
       ctx.globalAlpha = 1;
     });
     raf = requestAnimationFrame(draw);
@@ -935,7 +1230,7 @@ function downloadScan() {
   const cv = $("#starfield"), ctx = cv.getContext("2d"); let W, H;
   const rs = () => { W = cv.width = cv.clientWidth; H = cv.height = cv.clientHeight; }; rs(); addEventListener("resize", rs);
   const P = [...Array(160)].map(() => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.8 + .3, g: Math.random() < .12, ph: Math.random() * 6 }));
-  (function f(t) { if ($("#start").style.display !== "none") { ctx.clearRect(0, 0, W, H); P.forEach(p => { ctx.fillStyle = p.g ? `rgba(251,191,36,${.35 + .35 * Math.sin(t / 700 + p.ph)})` : "rgba(140,160,190,.28)"; ctx.beginPath(); ctx.arc(p.x * W, p.y * H, p.r, 0, 7); ctx.fill(); }); } requestAnimationFrame(f); })(0);
+  (function f(t) { if ($("#start").style.display !== "none") { ctx.clearRect(0, 0, W, H); P.forEach(p => { ctx.fillStyle = p.g ? `rgba(255,193,59,${.35 + .35 * Math.sin(t / 700 + p.ph)})` : "rgba(150,155,210,.28)"; ctx.beginPath(); ctx.arc(p.x * W, p.y * H, p.r, 0, 7); ctx.fill(); }); } requestAnimationFrame(f); })(0);
 })();
 
 /* ---------- boot ---------- */
@@ -986,24 +1281,24 @@ function renderProjection() {
   const maxY = Math.max(base, ...Object.values(SC).map(q => q.months[12].clicks)) * 1.08 || 1;
   const x = d3.scaleLinear().domain([0, 12]).range([m.l, W - m.r]), y = d3.scaleLinear().domain([0, maxY]).range([H - m.b, m.t]).nice();
   const defs = svg.append("defs"); const gr = defs.append("linearGradient").attr("id", "pg").attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
-  gr.append("stop").attr("offset", "0%").attr("stop-color", "#fbbf24").attr("stop-opacity", .35); gr.append("stop").attr("offset", "100%").attr("stop-color", "#fbbf24").attr("stop-opacity", 0);
-  y.ticks(4).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1a2537"); svg.append("text").attr("x", m.l - 8).attr("y", y(t) + 4).attr("text-anchor", "end").attr("fill", "#566580").attr("font-size", 10.5).attr("font-family", "JetBrains Mono").text(short(t)); });
-  [0, 3, 6, 9, 12].forEach(t => svg.append("text").attr("x", x(t)).attr("y", H - 8).attr("text-anchor", "middle").attr("fill", "#566580").attr("font-size", 10.5).attr("font-family", "JetBrains Mono").text(mlab(t)));
+  gr.append("stop").attr("offset", "0%").attr("stop-color", "#ffc13b").attr("stop-opacity", .35); gr.append("stop").attr("offset", "100%").attr("stop-color", "#ffc13b").attr("stop-opacity", 0);
+  y.ticks(4).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1d2044"); svg.append("text").attr("x", m.l - 8).attr("y", y(t) + 4).attr("text-anchor", "end").attr("fill", "#5d6296").attr("font-size", 10.5).attr("font-family", "JetBrains Mono").text(short(t)); });
+  [0, 3, 6, 9, 12].forEach(t => svg.append("text").attr("x", x(t)).attr("y", H - 8).attr("text-anchor", "middle").attr("fill", "#5d6296").attr("font-size", 10.5).attr("font-family", "JetBrains Mono").text(mlab(t)));
   const line = d3.line().x(d => x(d.m)).y(d => y(d.clicks)).curve(d3.curveMonotoneX);
-  Object.entries(SC).forEach(([k, q]) => { if (k !== SCEN) svg.append("path").attr("d", line(q.months)).attr("fill", "none").attr("stroke", "#3a4a66").attr("stroke-width", 1.5).attr("stroke-dasharray", "4 4"); });
+  Object.entries(SC).forEach(([k, q]) => { if (k !== SCEN) svg.append("path").attr("d", line(q.months)).attr("fill", "none").attr("stroke", "#3b3f73").attr("stroke-width", 1.5).attr("stroke-dasharray", "4 4"); });
   svg.append("path").attr("d", d3.area().x(d => x(d.m)).y0(y(base)).y1(d => y(d.clicks)).curve(d3.curveMonotoneX)(s.months)).attr("fill", "url(#pg)").attr("opacity", 0).transition().duration(1200).delay(500).attr("opacity", 1);
-  svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(base)).attr("y2", y(base)).attr("stroke", "#3ee08f").attr("stroke-width", 1.5).attr("stroke-dasharray", "2 4");
-  svg.append("text").attr("x", W - m.r + 6).attr("y", y(base) + 4).attr("fill", "#3ee08f").attr("font-size", 11).attr("font-family", "JetBrains Mono").text("today");
-  const p = svg.append("path").attr("d", line(s.months)).attr("fill", "none").attr("stroke", "#fbbf24").attr("stroke-width", 3).attr("stroke-linecap", "round");
+  svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(base)).attr("y2", y(base)).attr("stroke", "#3ee98a").attr("stroke-width", 1.5).attr("stroke-dasharray", "2 4");
+  svg.append("text").attr("x", W - m.r + 6).attr("y", y(base) + 4).attr("fill", "#3ee98a").attr("font-size", 11).attr("font-family", "JetBrains Mono").text("today");
+  const p = svg.append("path").attr("d", line(s.months)).attr("fill", "none").attr("stroke", "#ffc13b").attr("stroke-width", 3).attr("stroke-linecap", "round");
   const len = p.node().getTotalLength(); p.attr("stroke-dasharray", len).attr("stroke-dashoffset", len).transition().duration(1600).ease(d3.easeCubicOut).attr("stroke-dashoffset", 0);
   const end = s.months[12];
-  svg.append("circle").attr("cx", x(12)).attr("cy", y(end.clicks)).attr("r", 0).attr("fill", "#fbbf24").transition().delay(1500).duration(400).attr("r", 5);
-  svg.append("text").attr("x", x(12) + 8).attr("y", y(end.clicks) + 4).attr("fill", "#fbbf24").attr("font-weight", 800).attr("font-size", 13).text(short(end.clicks)).attr("opacity", 0).transition().delay(1500).attr("opacity", 1);
+  svg.append("circle").attr("cx", x(12)).attr("cy", y(end.clicks)).attr("r", 0).attr("fill", "#ffc13b").transition().delay(1500).duration(400).attr("r", 5);
+  svg.append("text").attr("x", x(12) + 8).attr("y", y(end.clicks) + 4).attr("fill", "#ffc13b").attr("font-weight", 800).attr("font-size", 13).text(short(end.clicks)).attr("opacity", 0).transition().delay(1500).attr("opacity", 1);
   // hover / touch readout
   const g = svg.append("g").style("display", "none");
-  g.append("line").attr("y1", m.t).attr("y2", H - m.b).attr("stroke", "#566580").attr("stroke-dasharray", "3 3");
-  g.append("circle").attr("r", 5).attr("fill", "#fbbf24").attr("stroke", "#05080e").attr("stroke-width", 2);
-  const lab = g.append("text").attr("fill", "#ecf2fa").attr("font-size", 12).attr("font-weight", 700);
+  g.append("line").attr("y1", m.t).attr("y2", H - m.b).attr("stroke", "#5d6296").attr("stroke-dasharray", "3 3");
+  g.append("circle").attr("r", 5).attr("fill", "#ffc13b").attr("stroke", "#0a0b19").attr("stroke-width", 2);
+  const lab = g.append("text").attr("fill", "#f3f4ff").attr("font-size", 12).attr("font-weight", 700);
   const move = ev => { const [mx] = d3.pointer(ev, box); const mm = Math.max(0, Math.min(12, Math.round(x.invert(mx)))); const d = s.months[mm]; g.style("display", null); g.select("line").attr("x1", x(mm)).attr("x2", x(mm)); g.select("circle").attr("cx", x(mm)).attr("cy", y(d.clicks)); lab.attr("x", x(mm) + (mm > 8 ? -8 : 8)).attr("y", y(d.clicks) - 12).attr("text-anchor", mm > 8 ? "end" : "start").text(`${mlab(mm)}: ${fmt(d.clicks)} visits${d.value ? " · " + money(d.value) : ""}`); };
   svg.on("pointermove", move).on("pointerdown", move).on("pointerleave", () => g.style("display", "none"));
   // breakdown
@@ -1021,7 +1316,7 @@ function renderProjection() {
 }
 function renderCtr() {
   const t = +$("#tRange").value; $("#tPos").textContent = "#" + t;
-  $("#ctrBars").innerHTML = CTR.slice(1).map((c, j) => `<div><span>${(c * 100).toFixed(c < .02 ? 1 : 0)}%</span><i class="${j + 1 === t ? "on" : j + 1 < t ? "" : ""}" data-h="${100 * c / CTR[1]}" style="${j + 1 <= t ? "background:" + (j + 1 === t ? "" : "#3a4a66") : ""}"></i><em>#${j + 1}</em></div>`).join("");
+  $("#ctrBars").innerHTML = CTR.slice(1).map((c, j) => `<div><span>${(c * 100).toFixed(c < .02 ? 1 : 0)}%</span><i class="${j + 1 === t ? "on" : j + 1 < t ? "" : ""}" data-h="${100 * c / CTR[1]}" style="${j + 1 <= t ? "background:" + (j + 1 === t ? "" : "#3b3f73") : ""}"></i><em>#${j + 1}</em></div>`).join("");
   requestAnimationFrame(() => document.querySelectorAll("#ctrBars i").forEach(i => i.style.height = i.dataset.h + "%"));
   let g = 0, v = 0, n = 0;
   R.items.forEach(x => { const d = x.v * x.f * (ctr(t) - ctr(x.p)); if (d > 0) { g += d; v += d * (x.c || 0); n++; } });
@@ -1054,14 +1349,15 @@ function shareSummary() {
 }
 
 function renderLadder() {
-  const Rr = R, sc = scenarios(Rr).exp, lead = Rr.comps[0];
-  const leadClicks = lead ? (Rr.basis.local ? lead.clicks / Math.max(.01, Rr.basis.pct) : lead.clicks) : 0;
+  const Rr = R, sc = scenarios(Rr).exp, lead = Rr.comps.find(c => c.type === "direct") || Rr.comps[0];
+  const bp = Rr.basis.local && Rr.market.clicks ? Math.max(.05, Rr.basis.clicks / Rr.market.clicks) : 1;
+  const leadClicks = lead ? lead.clicks / bp : 0;
   const potential = Rr.you.clicks + Rr.table.clicks;
   const rows = [
-    { l: "You today", s: SCAN.domain, v: Rr.you.clicks, val: Rr.you.value, c: "linear-gradient(90deg,#3ee08f,#7cf29c)" },
-    { l: "You in 12 months", s: "expected scenario", v: sc.months[12].clicks, val: sc.months[12].value, c: "linear-gradient(90deg,#d99b12,#fbbf24)" },
-    lead && { l: "The market leader", s: lead.d, v: leadClicks, val: lead.value / (Rr.basis.local ? Math.max(.01, Rr.basis.pct) : 1), c: "linear-gradient(90deg,#e0566a,#ff8a96)" },
-    { l: "Top 3 on every search", s: "your full potential", v: potential, val: Rr.you.value + Rr.table.value, c: "repeating-linear-gradient(135deg,#fbbf24 0 8px,#d99b12 8px 16px)" },
+    { l: "You today", s: SCAN.domain, v: Rr.you.clicks, val: Rr.you.value, c: "linear-gradient(90deg,#3ee98a,#7ef5b0)" },
+    { l: "You in 12 months", s: "expected scenario", v: sc.months[12].clicks, val: sc.months[12].value, c: "linear-gradient(90deg,#e0a21f,#ffc13b)" },
+    lead && { l: "The market leader", s: lead.d, v: leadClicks, val: lead.value / bp, c: "linear-gradient(90deg,#e0566a,#ff8a96)" },
+    { l: "Top 3 on every search", s: "your full potential", v: potential, val: Rr.you.value + Rr.table.value, c: "repeating-linear-gradient(135deg,#ffc13b 0 8px,#e0a21f 8px 16px)" },
   ].filter(Boolean);
   const max = Math.max(...rows.map(r => r.v), 1);
   $("#ladder").innerHTML = rows.map(r => `<div class="lrow"><div class="lb">${r.l}<span>${esc(r.s)}</span></div><div class="tr2"><i style="background:${r.c}" data-w="${Math.max(0.6, 100 * r.v / max)}"></i></div><div class="vv">${fmt(r.v)}<span>${r.val ? money(r.val) + "/mo" : "visits/mo"}</span></div></div>`).join("");

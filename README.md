@@ -14,6 +14,20 @@ state. The scanner pulls live [DataForSEO](https://dataforseo.com) data and show
 
 It's built to be pulled up on a phone in the middle of a conversation: animated scan, mobile-first layout, one-tap share.
 
+### The AI analyst
+
+An AI model (Claude Haiku, called through DataForSEO's LLM endpoint, so no extra API key) makes the judgment calls a
+senior SEO would:
+
+1. **Reads the business** from its domain and top rankings, then decides which related services to map (a "personal
+   injury lawyer" scan also pulls car accident, slip and fall and wrongful death searches).
+2. **Checks every search for relevance** in small batches and drops other locations, job searches, brand names and
+   off-topic terms, with the reason for each.
+3. **Vets the competitors** as direct competitors, directories or media sites.
+4. **Writes the takeaway** and three next moves from the final numbers.
+
+Traffic (visits per month) is the main metric throughout. Click value at ad prices is shown as a secondary number.
+
 ### ▶ [Try it](https://jourdanrombough.github.io/left-on-the-table/)
 
 The example scans replay without an API key. To scan any domain live, tap **Add API key** and enter your DataForSEO login.
@@ -26,6 +40,7 @@ The example scans replay without an API key. To scan any domain live, tap **Add 
 | The market | `keyword_suggestions` + `related_keywords` for the target keyword (or `keywords_for_site`), synonyms ignored |
 | Local demand | `keywords_data/google_ads/search_volume` for the chosen state |
 | Who owns it | `dataforseo_labs/google/serp_competitors` nationwide; live `serp/google/organic/live/advanced` checks of the 20 most valuable searches from the state's largest city when a state is chosen |
+| AI analyst | `ai_optimization/claude/llm_responses` (Claude Haiku 4.5), with `chat_gpt/llm_responses` as a backup |
 
 - **Clicks** use a standard organic click-through curve: about 22% for #1, 13% for #2, 9% for #3, falling to 1.5% at #10 and 0.6% on page two. When a map pack shows, organic clicks are scaled to 65% and the pack's three spots take 16%, 11% and 8%.
 - **Click value** is clicks × CPC, what the same traffic would cost in Google Ads. Searches with no CPC use the market median, marked `~`.
@@ -48,7 +63,7 @@ python3 server.py           # opens http://localhost:8765
 
 On a Mac you can double-click **Start Left on the Table.command** instead. The local server only forwards a fixed list of
 DataForSEO endpoints, caches responses for 7 days (re-opening a scan is free) and saves every scan to `scans/`.
-A typical scan costs about $0.25 to $0.45 in DataForSEO credits. No dependencies beyond Python 3.9.
+A typical scan costs about $0.30 to $0.60 in DataForSEO credits, including about 30 small AI calls. No dependencies beyond Python 3.9.
 
 ---
 
