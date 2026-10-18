@@ -457,11 +457,11 @@ function clusterTopics(items, S, comps) {
   const domT = new Set(toks(S.domain.split(".")[0]));
   const keep = t => t.length > 1 && (!GENERIC.has(t) || TOPIC_OK.has(t)) && !seedT.has(t) && !GEO_TOKENS.has(t) && !domT.has(t) && !/^\d+$/.test(t);
   const w = x => x.mkVal > 0 ? x.mkVal : x.mk * 0.5;
-  const uni = {}, bi = {};
+  const uni = {}, bi = {}, cnt = {};
   const kt = items.map(x => {
     const t = toks(x.k), f = t.filter(keep), bs = [];
     for (let j = 0; j < t.length - 1; j++) if (keep(t[j]) && keep(t[j + 1])) bs.push(t[j] + " " + t[j + 1]);
-    new Set(f).forEach(a => { uni[a] = (uni[a] || 0) + w(x); });
+    new Set(f).forEach(a => { uni[a] = (uni[a] || 0) + w(x); cnt[a] = (cnt[a] || 0) + 1; });
     new Set(bs).forEach(b => { bi[b] = (bi[b] || 0) + w(x); });
     return { f: new Set(f), b: new Set(bs) };
   });
@@ -471,21 +471,26 @@ function clusterTopics(items, S, comps) {
   const BUCKETS = [
     ["costs & fees", k => /\b(cost|costs|fee|fees|price|prices|percentage|percent|charge|charges|contingency|how much|settlement|settlements|calculator|worth|payout)\b/.test(k)],
     ["questions", k => /^(how|what|when|where|why|who|which|can|do|does|is|should|are|will)\b/.test(k)],
+    ["free consultation", k => /\b(free|consultation|consult)\b/.test(k)],
     ["near me", k => /\bnear( me|by)?\b/.test(k)],
+    ["best & top rated", k => /\b(best|top|rated|review|reviews|recommended|highest|leading|award)\b/.test(k)],
+    ["firms & offices", k => /\b(firm|firms|office|offices|associates|practice)\b/.test(k)],
     ["towns & counties", (k, i) => stRe && (stRe.test(k) || /\bcounty\b/.test(k)) && kt[i].f.size > 0 && ![...kt[i].f].every(t => uni[t] > total * 0.02)],
+    ["cities & towns", (k, i) => !!S.location.region && kt[i].f.size > 0 && items[i].nv > 0 && !items[i].ve && items[i].v / items[i].nv >= 0.5],
   ];
+  // after the named groups, also split what's left by its most common modifiers
   BUCKETS.forEach(([name, test]) => {
     const idx = []; items.forEach((x, i) => { if (assigned[i] < 0 && test(x.k, i)) idx.push(i); });
     if (idx.length >= 3) { const ti = topics.length; topics.push({ name, idx }); idx.forEach(i => assigned[i] = ti); }
   });
-  for (let round = 0; round < 10; round++) {
+  for (let round = 0; round < 16 && topics.length < 15; round++) {
     const sc = {}; const add = (lab, x, i, isBi) => { if (assigned[i] >= 0) return; sc[lab] = sc[lab] || { lab, w: 0, n: 0, bi: isBi }; sc[lab].w += w(x); sc[lab].n++; };
     items.forEach((x, i) => { kt[i].f.forEach(a => add(a, x, i, false)); kt[i].b.forEach(b => add(b, x, i, true)); });
     let cand = Object.values(sc).filter(c => c.n >= 3).sort((a, b) => b.w - a.w);
     if (!cand.length) break;
     let best = cand[0];
     if (!best.bi) { const b = cand.find(c => c.bi && c.lab.split(" ").includes(best.lab) && c.w >= best.w * 0.6); if (b) best = b; }
-    if (best.w / total < 0.012) break;
+    if (best.w / total < 0.0015 && best.n < 5) break;
     const ti = topics.length; topics.push({ name: best.lab, idx: [] });
     items.forEach((x, i) => { if (assigned[i] < 0 && (best.bi ? kt[i].b.has(best.lab) : kt[i].f.has(best.lab))) { assigned[i] = ti; topics[ti].idx.push(i); } });
   }
@@ -514,17 +519,28 @@ const VIZ = (() => {
   let cv, ctx, W, H, CX, CY, RAD, D, raf, t0;
   let parts = [], comps = [], beams = [], tiles = [], center = "", sweep = 0, tablePhase = 0;
   const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
-  function resize() { D = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); const mob = W < 700; CX = W < 1000 ? W * 0.5 : W * 0.4; CY = mob ? H * 0.43 : H * 0.5; RAD = mob ? Math.min(W * 0.36, H * 0.24) : Math.min(W < 1000 ? W * 0.44 : W * 0.3, H * 0.36); }
+  function resize() { D = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); const mob = W < 700; CX = W < 1000 ? W * 0.5 : W * 0.4; CY = mob ? H * 0.43 : H * 0.5; RAD = mob ? Math.min(W * 0.34, H * 0.23) : Math.min(W < 1000 ? W * 0.4 : W * 0.24, H * 0.34); }
+  let wedges = null, labels = [];
+  function setTopics() {
+    const items = SCAN.universe.map((u, i) => ({ ...u, i, mk: u.v * SUM10, mkVal: u.v * SUM10 * (u.c || 0) }));
+    const tp = clusterTopics(items, SCAN, []).slice(0, 10);
+    const tot = tp.reduce((a, t) => a + Math.max(t.n, 6), 0) || 1;
+    let a0 = -Math.PI / 2; wedges = {}; labels = [];
+    tp.forEach((t, j) => { const span = Math.PI * 2 * Math.max(t.n, 6) / tot; wedges[t.name] = [a0, span]; labels.push({ name: t.name, a: a0 + span / 2, n: t.n, born: performance.now() + j * 160 }); a0 += span; });
+    const byK = {}; items.forEach(x => byK[x.k] = x.topic);
+    parts.forEach(p => { const tn = byK[p.k]; const w = wedges[tn]; if (!w) return; const pl = place(p.k, p.inner, w); p.tx = pl.tx; p.ty = pl.ty; p.topic = tn; });
+    return byK;
+  }
   function topicKey(k) { const f = toks(k).filter(t => !GENERIC.has(t) && !GEO_TOKENS.has(t) && !(SCAN.seeds.join(" ").includes(t))); return f[0] || k; }
-  function place(k, inner) {
-    const a = hash(topicKey(k)) * Math.PI * 2 + (hash(k) - 0.5) * 0.5;
+  function place(k, inner, w) {
+    const a = w ? w[0] + w[1] * (0.08 + 0.84 * hash(k + "a")) : hash(topicKey(k)) * Math.PI * 2 + (hash(k) - 0.5) * 0.5;
     const r = inner ? 0.1 + 0.28 * hash(k + "r") : 0.42 + 0.58 * Math.sqrt(hash(k + "r"));
     return { tx: CX + Math.cos(a) * r * RAD * 1.25, ty: CY + Math.sin(a) * r * RAD };
   }
   function sizeOf(v, c) { return 1.2 + Math.min(7, Math.sqrt((v * Math.max(c || 0, 0.4)) / 40)); }
   function start(domain) {
     cv = $("#radar"); ctx = cv.getContext("2d"); resize(); window.addEventListener("resize", resize);
-    parts = []; comps = []; beams = []; tiles = []; center = domain; tablePhase = 0; t0 = performance.now();
+    parts = []; comps = []; beams = []; tiles = []; labels = []; wedges = null; center = domain; tablePhase = 0; t0 = performance.now();
     cancelAnimationFrame(raf); loop();
   }
   function stop() { cancelAnimationFrame(raf); }
@@ -558,6 +574,17 @@ const VIZ = (() => {
       ctx.fillStyle = "#ff6b7d"; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 7); ctx.fill();
       ctx.fillStyle = "#c6d2e2"; ctx.font = (W < 700 ? "600 9px" : "600 11px") + " JetBrains Mono"; ctx.textAlign = "center"; ctx.fillText(W < 700 && c.d.length > 16 ? c.d.slice(0, 15) + "…" : c.d, c.x, c.y - c.r - 8);
     });
+    // topic titles around the radar
+    labels.forEach(l => {
+      const a = Math.min(1, Math.max(0, (t - l.born) / 600)); if (!a) return;
+      const rx = RAD * 1.25 * 0.36, ry = RAD * 0.36;
+      ctx.globalAlpha = a * 0.5; ctx.strokeStyle = "rgba(251,191,36,.35)"; ctx.beginPath(); ctx.moveTo(CX + Math.cos(l.a) * rx, CY + Math.sin(l.a) * ry); ctx.lineTo(CX + Math.cos(l.a) * RAD * 1.25 * 1.02, CY + Math.sin(l.a) * RAD * 1.02); ctx.stroke();
+      ctx.globalAlpha = a; const lx = CX + Math.cos(l.a) * RAD * 1.25 * 1.06, ly = CY + Math.sin(l.a) * RAD * 1.06;
+      const txt = l.name.toUpperCase(); ctx.font = (W < 700 ? "700 9px" : "700 11px") + " JetBrains Mono"; ctx.textAlign = Math.cos(l.a) > 0.25 ? "left" : Math.cos(l.a) < -0.25 ? "right" : "center";
+      const tw = ctx.measureText(txt).width; const bx = ctx.textAlign === "left" ? lx - 6 : ctx.textAlign === "right" ? lx - tw - 6 : lx - tw / 2 - 6;
+      ctx.fillStyle = "rgba(6,10,18,.85)"; ctx.fillRect(bx, ly - 11, tw + 12, 17); ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, lx, ly + 2);
+      ctx.globalAlpha = 1;
+    });
     // center
     ctx.fillStyle = "rgba(62,224,143,.16)"; ctx.beginPath(); ctx.arc(CX, CY, 26 + 4 * Math.sin(t / 400), 0, 7); ctx.fill();
     ctx.fillStyle = "#3ee08f"; ctx.beginPath(); ctx.arc(CX, CY, 9, 0, 7); ctx.fill();
@@ -576,7 +603,7 @@ const VIZ = (() => {
   }
   function foot() {
     SCAN.ranked.slice(0, 220).forEach((r, j) => setTimeout(() => {
-      const pl = place(r.k, true); parts.push({ k: r.k, x: CX, y: CY, ...pl, r: 0, tr: sizeOf(r.v, r.c), mine: true, st: status(r.p), ph: Math.random() * 6, ping: performance.now() });
+      const pl = place(r.k, true); parts.push({ k: r.k, inner: true, x: CX, y: CY, ...pl, r: 0, tr: sizeOf(r.v, r.c), mine: true, st: status(r.p), ph: Math.random() * 6, ping: performance.now() });
     }, j * (REPLAY ? 6 : 8)));
   }
   function market() {
@@ -592,6 +619,7 @@ const VIZ = (() => {
         if (j % 7 === 0) { $("#cSearch").textContent = fmt(n + have.size); $("#cValue").textContent = money(val); }
       }, j * (REPLAY ? 2 : 3));
     });
+    setTimeout(() => setTopics(), Math.min(1600, SCAN.universe.length * (REPLAY ? 2 : 3)) + 300);
     setTimeout(() => { $("#cSearch").textContent = fmt(SCAN.universe.length); $("#cValue").textContent = money(SCAN.universe.reduce((a, u) => a + u.v * SUM10 * (u.c || 0), 0)); }, SCAN.universe.length * 3 + 100);
   }
   function local() {
@@ -785,47 +813,101 @@ const UNI = (() => {
     cv.addEventListener("touchstart", e => { const t = e.touches[0]; cv.onmousemove({ clientX: t.clientX, clientY: t.clientY }); setTimeout(() => { hover = null; tip(null); }, 2600); }, { passive: true });
     resize(); layout(true);
     cancelAnimationFrame(raf); draw();
-    window.addEventListener("resize", () => { resize(); layout(false); });
+    let lastW = innerWidth; window.addEventListener("resize", () => { if (Math.abs(innerWidth - lastW) < 2) return; lastW = innerWidth; resize(); layout(false); });
   }
   function resize() { D = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); }
+  const GC = ["#5b8cff", "#4fd1e8", "#a78bfa", "#f472b6", "#ff8a6b", "#2dd4bf", "#818cf8", "#e879f9", "#60a5fa", "#fb7185", "#34d399", "#c084fc", "#38bdf8", "#f59e0b", "#a3e635", "#94a3b8"];
+  function subText(g) { return `${g.n} searches · ${g.isVal ? money(g.pot) : "+" + fmt(g.pot)} open`; }
+  function pillW(g) { ctx.font = "800 11.5px JetBrains Mono"; const a = ctx.measureText(g.name.toUpperCase()).width + 28; ctx.font = "500 10.5px JetBrains Mono"; return Math.max(a, ctx.measureText(subText(g)).width + 20); }
   function layout(first) {
     const xs = R.items.slice().sort((a, b) => b.mkVal - a.mkVal).slice(0, 750);
     const useVal = sizeBy === "value" && xs.some(x => x.mkVal > 0);
-    const tops = R.topics.slice(0, 11).map(t => t.name);
-    const root = { children: tops.map(n => ({ name: n, children: [] })) };
+    const tops = R.topics.slice(0, 16).map(t => t.name);
+    let gs = tops.map(n => ({ name: n, children: [] }));
     const other = { name: "other", children: [] };
-    xs.forEach(x => { const g = root.children.find(c => c.name === x.topic) || other; g.children.push({ x, value: Math.pow(Math.max(useVal ? x.mkVal : x.v, useVal ? 1 : 5), 0.62) }); });
-    if (other.children.length) root.children.push(other);
-    root.children = root.children.filter(c => c.children.length);
-    const h = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
-    d3.pack().size([W - 20, H - 30]).padding(d => d.depth === 0 ? 18 : 1.5)(h);
+    xs.forEach(x => { const g = gs.find(c => c.name === x.topic) || other; g.children.push({ x, raw: useVal ? x.mkVal : x.v }); });
+    const mxRaw = Math.max(1, ...xs.map(x => useVal ? x.mkVal : x.v));
+    if (other.children.length) gs.push(other);
+    gs = gs.filter(c => c.children.length);
+    gs.forEach(g => g.children.forEach(c => c.value = Math.pow(Math.max(c.raw, mxRaw * 0.0015), 0.5)));
+    gs.forEach(g => g.sum = g.children.reduce((a, c) => a + c.value, 0));
+    gs.sort((a, b) => b.sum - a.sum);
+    groups = gs.map((c, j) => { const t = R.topics.find(q => q.name === c.name); return { name: c.name, col: GC[j % GC.length], n: c.children.length, val: t ? t.value : 0, pot: t ? (t.potVal || t.pot) : 0, isVal: !!(t && t.potVal), data: c }; });
     const prev = {}; nodes.forEach(n => prev[n.x0.k] = n);
-    nodes = h.leaves().map((l, j) => { const p = prev[l.data.x.k]; return { x0: l.data.x, tx: l.x + 10, ty: l.y + 22, tr: l.r, x: p ? p.x : W / 2, y: p ? p.y : H / 2, r: p ? p.r : 0, delay: first ? j * 1.6 : 0, born: performance.now() }; });
-    groups = h.children.map(c => ({ name: c.data.name, x: c.x + 10, y: c.y + 22, r: c.r }));
+    const leaves = [];
+    if (true) {
+      // each keyword group gets its own titled cluster; clusters flow in centered rows
+      const mob = W < 700, maxSum = groups[0].data.sum, Dmax = mob ? W - 40 : Math.min(460, W * 0.42), Dmin = mob ? 96 : 120;
+      const rows = []; let row = [], rw = 0;
+      groups.forEach(g => {
+        g.D = Math.max(Dmin, Dmax * Math.sqrt(g.data.sum / maxSum)); g.pw = pillW(g); g.cw = Math.max(g.D, g.pw) + (mob ? 14 : 30);
+        if (rw + g.cw > W - 20 && row.length) { rows.push(row); row = []; rw = 0; }
+        row.push(g); rw += g.cw;
+      });
+      if (row.length) rows.push(row);
+      let y = mob ? 92 : 70;
+      rows.forEach(rr => {
+        const tot = rr.reduce((a, g) => a + g.cw, 0); let x = (W - tot) / 2; const rowH = Math.max(...rr.map(g => g.D)) + 58;
+        rr.forEach(g => { g.cx = x + g.cw / 2; g.cy = y + 40 + (rowH - 58) / 2; g.r = g.D / 2; g.lab = { x: Math.max(4, Math.min(W - g.pw - 4, g.cx - g.pw / 2)), y: g.cy - g.r - 38, w: g.pw, h: 32 }; x += g.cw; });
+        y += rowH;
+      });
+      const need = y + 64;
+      if (Math.abs(cv.parentElement.clientHeight - need) > 2) { cv.parentElement.style.height = need + "px"; resize(); }
+      groups.forEach(g => {
+        const h = d3.hierarchy({ children: g.data.children }).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
+        d3.pack().size([g.r * 2, g.r * 2]).padding(1.2)(h);
+        g.x = g.cx; g.y = g.cy;
+        h.leaves().forEach(l => leaves.push({ l, ox: g.cx - g.r, oy: g.cy - g.r, g }));
+      });
+    } else {
+      const TOP = 46, PAD = 38;
+      const h = d3.hierarchy({ children: gs }).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
+      d3.pack().size([W - 20, H - TOP - 50]).padding(d => d.depth === 0 ? PAD : 1.2)(h);
+      h.children.forEach(c => { const g = groups.find(q => q.data === c.data); g.x = c.x + 10; g.y = c.y + TOP; g.r = c.r; });
+      h.leaves().forEach(l => leaves.push({ l, ox: 10, oy: TOP, g: groups.find(q => q.data === l.parent.data) }));
+      const placed = [];
+      groups.forEach(g => {
+        const w = pillW(g), hh = 32;
+        let y = g.y - g.r - hh - 2, x = Math.max(4, Math.min(W - w - 4, g.x - w / 2));
+        const hit = r => placed.some(q => !(r.x + r.w < q.x || q.x + q.w < r.x || r.y + r.h < q.y || q.y + q.h < r.y));
+        let tries = 0; while ((y < 2 || hit({ x, y, w, h: hh })) && tries++ < 14) y = y < 2 ? g.y - g.r + 4 : y + 12;
+        g.lab = { x, y, w, h: hh }; placed.push(g.lab);
+      });
+    }
+    nodes = leaves.map(({ l, ox, oy, g }, j) => { const p = prev[l.data.x.k]; return { x0: l.data.x, col: g.col, tx: l.x + ox, ty: l.y + oy, tr: l.r, x: p ? p.x : g.x, y: p ? p.y : g.y, r: p ? p.r : 0, delay: first ? j * 1.6 : 0, born: performance.now() }; });
+    groups.forEach(g => g.born = performance.now());
   }
   function draw() {
     const t = performance.now();
     ctx.clearRect(0, 0, W, H);
-    groups.forEach(g => { ctx.strokeStyle = "rgba(91,140,255,.16)"; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); });
+    groups.forEach(g => { ctx.globalAlpha = .55; ctx.strokeStyle = g.col; ctx.lineWidth = 1.2; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.arc(g.x, g.y, g.r + 3, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = .05; ctx.fillStyle = g.col; ctx.fill(); ctx.globalAlpha = 1; });
     nodes.forEach(n => {
       if (t - n.born < n.delay) return;
       n.x += (n.tx - n.x) * 0.09; n.y += (n.ty - n.y) * 0.09; n.r += (n.tr - n.r) * 0.09;
       const x = n.x0, show = filt === "all" || (filt === "miss" ? (!x.p || x.p > 3) : (x.p && x.p <= 20));
       ctx.globalAlpha = show ? 1 : 0.08;
-      if (x.st === "none") { ctx.fillStyle = "#121b2a"; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(0.5, n.r - 0.5), 0, 7); ctx.fill(); ctx.strokeStyle = filt === "miss" ? `rgba(251,191,36,${0.55 + 0.3 * Math.sin(t / 400 + n.tx)})` : "rgba(251,191,36,.32)"; ctx.lineWidth = 1; ctx.stroke(); }
+      if (x.st === "none") { ctx.fillStyle = "#0f1726"; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(0.5, n.r - 0.5), 0, 7); ctx.fill(); const ga = ctx.globalAlpha; ctx.globalAlpha = ga * 0.28; ctx.fillStyle = n.col || "#26344c"; ctx.fill(); ctx.globalAlpha = ga; ctx.strokeStyle = filt === "miss" ? `rgba(251,191,36,${0.55 + 0.3 * Math.sin(t / 400 + n.tx)})` : "rgba(251,191,36,.32)"; ctx.lineWidth = 1; ctx.stroke(); }
       else { ctx.fillStyle = COLORS[x.st]; ctx.beginPath(); ctx.arc(n.x, n.y, Math.max(0.5, n.r - 0.5), 0, 7); ctx.fill(); }
       if (n === hover) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 2, 0, 7); ctx.stroke(); }
-      if (n.r > 30 && show && Math.abs(n.r - n.tr) < 2) { const fs = Math.min(12.5, n.r / 3.6); ctx.font = `600 ${fs}px Inter`; ctx.textAlign = "center"; ctx.fillStyle = x.st === "none" ? "#c6d2e2" : "#05080e"; let w = x.k; const maxW = n.r * 1.7; while (w.length > 4 && ctx.measureText(w).width > maxW) w = w.slice(0, -2); if (w !== x.k) w = w.slice(0, -1) + "…"; ctx.fillText(w, n.x, n.y + 2); ctx.font = `500 ${fs * 0.85}px JetBrains Mono`; ctx.globalAlpha *= .75; ctx.fillText(x.mkVal ? money(x.mkVal) : fmt(x.v), n.x, n.y + 2 + fs * 1.2); }
+      if (n.r > 22 && show && Math.abs(n.r - n.tr) < 2) { const fs = Math.min(12.5, Math.max(8.5, n.r / 3.6)); ctx.font = `600 ${fs}px Inter`; ctx.textAlign = "center"; ctx.fillStyle = x.st === "none" ? "#c6d2e2" : "#05080e"; let w = x.k; const maxW = n.r * 1.7; while (w.length > 4 && ctx.measureText(w).width > maxW) w = w.slice(0, -2); if (w !== x.k) w = w.slice(0, -1) + "…"; ctx.fillText(w, n.x, n.y + 2); ctx.font = `500 ${fs * 0.85}px JetBrains Mono`; ctx.globalAlpha *= .75; ctx.fillText(x.mkVal ? money(x.mkVal) : fmt(x.v), n.x, n.y + 2 + fs * 1.2); }
     });
     ctx.globalAlpha = 1;
-    groups.forEach(g => { if (g.r < 34) return; ctx.font = "700 12px JetBrains Mono"; ctx.textAlign = "center"; const lab = g.name.toUpperCase(); const w = ctx.measureText(lab).width + 14; ctx.fillStyle = "rgba(6,10,18,.85)"; ctx.fillRect(g.x - w / 2, g.y - g.r - 9, w, 18); ctx.fillStyle = "#c6d2e2"; ctx.fillText(lab, g.x, g.y - g.r + 4); });
+    groups.forEach((g, j) => {
+      const L = g.lab; if (!L) return; const a = Math.min(1, Math.max(0, (t - g.born - 300 - j * 90) / 500)); if (!a) return;
+      ctx.globalAlpha = a; ctx.fillStyle = "rgba(6,10,18,.9)"; ctx.strokeStyle = g.col; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(L.x, L.y, L.w, L.h, 8) : ctx.rect(L.x, L.y, L.w, L.h); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = g.col; ctx.fillRect(L.x + 8, L.y + 9, 6, 6);
+      ctx.textAlign = "left"; ctx.font = "800 11.5px JetBrains Mono"; ctx.fillStyle = "#ecf2fa"; ctx.fillText(g.name.toUpperCase(), L.x + 19, L.y + 15);
+      ctx.font = "500 10.5px JetBrains Mono"; ctx.fillStyle = "#8796ab"; ctx.fillText(subText(g), L.x + 9, L.y + 27);
+      ctx.globalAlpha = 1;
+    });
     raf = requestAnimationFrame(draw);
   }
   function tip(e, n) {
     const T = $("#tip");
     if (!n) { T.style.display = "none"; return; }
     const x = n.x0;
-    T.innerHTML = `<b>${esc(x.k)}</b><div class="r"><span>Searches / mo</span><span>${fmt(x.v)}</span></div><div class="r"><span>CPC</span><span>${x.c ? "$" + x.c.toFixed(2) : "–"}</span></div><div class="r"><span>You</span><span>${x.p ? "#" + x.p : "not ranking"}</span></div><div class="r"><span>#1 right now</span><span>${x.lead ? esc(x.lead.d) : "–"}</span></div><div class="r"><span>On the table</span><span style="color:var(--gold)">+${fmt(x.pot)} visits${x.potVal ? " · " + money(x.potVal) : ""}</span></div>`;
+    T.innerHTML = `<b>${esc(x.k)}</b><div class="r"><span>Group</span><span style="text-transform:capitalize">${esc(x.topic || "")}</span></div><div class="r"><span>Searches / mo</span><span>${fmt(x.v)}</span></div><div class="r"><span>CPC</span><span>${x.c ? "$" + x.c.toFixed(2) : "–"}</span></div><div class="r"><span>You</span><span>${x.p ? "#" + x.p : "not ranking"}</span></div><div class="r"><span>#1 right now</span><span>${x.lead ? esc(x.lead.d) : "–"}</span></div><div class="r"><span>On the table</span><span style="color:var(--gold)">+${fmt(x.pot)} visits${x.potVal ? " · " + money(x.potVal) : ""}</span></div>`;
     T.style.display = "block"; T.style.left = Math.max(8, Math.min(innerWidth - T.offsetWidth - 8, e.clientX + 16)) + "px"; T.style.top = Math.min(innerHeight - T.offsetHeight - 8, e.clientY + 16) + "px";
   }
   return { init };
