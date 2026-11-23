@@ -1,4 +1,4 @@
-# Left on the Table
+# Left on the Table · Traffic Gap Scanner v2
 
 **See how much search traffic a site is leaving on the table, in about a minute.**
 
@@ -30,7 +30,30 @@ Traffic (visits per month) is the main metric throughout. Click value at ad pric
 
 ### ▶ [Try it](https://jourdanrombough.github.io/left-on-the-table/)
 
-The example scans replay without an API key. To scan any domain live, tap **Add API key** and enter your DataForSEO login.
+The example scans replay without an API key. To scan any domain live, tap **Add API key** and enter your DataForSEO
+**API login** and **API password** (from [app.dataforseo.com → API Access](https://app.dataforseo.com/api-access)).
+Calls go straight from your browser to DataForSEO; nothing passes through GitHub or any other server. The key stays in
+the browser tab unless you tick "remember", and your scans are saved in that browser. A scan costs about $0.30 to $0.60
+in credits, and the AI steps run through DataForSEO's LLM endpoint, so no second key is needed.
+
+### v2: the report
+
+Every scan now opens as an illustrated report with a written read-out under every chart (how to read it, what it says
+about this site, and the move to make):
+
+- Market vital signs (ring gauges against the market leader)
+- Click concentration curve, search intent wheel, head terms vs. the long tail
+- Ranking position spread and the pages doing the work
+- Opportunity matrix (difficulty × demand, four quadrants) and the striking-distance launchpad
+- 12-month projection, click-through curve and growth waterfall
+- Keyword universe, competitor list, strength radar, topic ownership heatmap and click-flow (Sankey) diagram
+- Untapped topics, a zoomable market treemap, the opportunity list and the bottom line
+
+The report layer lives in `insights.js` and reads the finished scan, so the scan engine in `app.js` is unchanged by it.
+
+### Add your own example scan
+
+Run a scan, tap **Download data**, drop the `.json` into `examples/` and add a line for it to `examples/index.json`.
 
 ## How the numbers work
 

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Left on the Table: see the search traffic you're missing</title>
+<title>Traffic Gap Scanner | Optimization Theory</title>
+<meta name="robots" content="noindex">
 <meta name="description" content="Enter a domain and an optional target keyword. See what the site captures today, the whole keyword market it could own, who's winning it, and the traffic and money left on the table. Live DataForSEO data.">
 <meta name="theme-color" content="#0a0b19">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -54,7 +55,11 @@ h1 .g{color:var(--gold);text-shadow:0 0 40px rgba(255,193,59,.35)}
 .f input,.f select{width:100%;background:#0d0f24;border:1px solid var(--line2);border-radius:11px;padding:13px 14px;font-size:15.5px;outline:none;transition:.2s}
 .f input:focus,.f select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(255,193,59,.15)}
 .f select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 55%,calc(100% - 13px) 55%;background-size:5px 5px;background-repeat:no-repeat}
-.go{height:50px;padding:0 24px;font-size:16px}
+.go{height:50px;padding:0 24px;font-size:16px;grid-column:5;grid-row:1}
+.form .nf{grid-column:1/-1}
+.navl{text-decoration:none}
+body.embed .top,body.embed #start,body.embed .ract,body.embed .chapnav{display:none!important}
+body.embed #scDone .btn{display:none}
 .est{margin-top:10px;font:12px var(--mono);color:var(--dim);display:flex;gap:16px;flex-wrap:wrap}
 .est b{color:var(--muted);font-weight:500}
 .how{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:40px 0 0}
@@ -286,9 +291,10 @@ input[type=range]{width:100%;margin-top:10px;accent-color:#ffc13b;height:28px}
 .brow .t{height:8px;border-radius:5px;background:#0d0f24;overflow:hidden}
 .brow .t i{display:block;height:100%;width:0;border-radius:5px;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
 .pt-tip{position:absolute;pointer-events:none;background:rgba(10,11,25,.95);border:1px solid var(--line2);border-radius:10px;padding:8px 10px;font-size:12px;display:none;white-space:nowrap}
-@media(max-width:1000px){h1{font-size:42px}.form{grid-template-columns:1fr 1fr}.form .go{grid-column:1/-1}.how,.kpis,.two,.topics,.lists{grid-template-columns:1fr}.serps{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-term{display:none}.sc-title{max-width:90vw}.sc-big{gap:18px}.sc-big div b{font-size:24px}.uni{height:640px}}
+@media(max-width:1000px){h1{font-size:42px}.form{grid-template-columns:1fr 1fr}.form .go{grid-column:1/-1;grid-row:auto;order:10}.how,.kpis,.two,.topics,.lists{grid-template-columns:1fr}.serps{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-term{display:none}.sc-title{max-width:90vw}.sc-big{gap:18px}.sc-big div b{font-size:24px}.uni{height:640px}}
 /* mobile */
 @media(max-width:700px){
+ .navl{display:none}
  .wrap{padding:0 16px}
  .top .wrap{height:54px}
  .logo{font-size:14.5px;white-space:nowrap} .logo i{width:26px;height:26px} #bal{display:none!important} #mode span:last-child{display:none} #mode{padding:7px} #keyBtn{padding:6px 10px;font-size:12px;white-space:nowrap}
@@ -341,12 +347,100 @@ input[type=range]{width:100%;margin-top:10px;accent-color:#ffc13b;height:28px}
 }
 
 @media print{.top,.ract,.uni .ctl,#scan{display:none!important}body{background:#fff;color:#111}.card,.kpi,.pie{border-color:#ddd;background:#fff!important}.kpi .v,.headline{color:#111}}
+/* ===================== v2: brighter palette + insights layer ===================== */
+:root{--lime:#b6ff3b;--teal:#2dd4bf;--blue:#4d7cff;--purple:#c56bff;--yellow:#ffe14d;--bg:#0a0920}
+body{background:radial-gradient(1100px 640px at 4% -6%,rgba(255,79,168,.22),transparent 60%),radial-gradient(1000px 620px at 98% 0%,rgba(47,208,255,.17),transparent 60%),radial-gradient(900px 700px at 50% 115%,rgba(182,255,59,.10),transparent 60%),radial-gradient(700px 500px at 80% 60%,rgba(197,107,255,.08),transparent 60%),var(--bg);background-attachment:fixed}
+h1 .g{background:linear-gradient(90deg,var(--gold),var(--pink) 55%,var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+.eyebrow{color:var(--lime)}
+.how div:nth-child(1){border-color:rgba(62,233,138,.45);background:linear-gradient(160deg,rgba(62,233,138,.12),rgba(17,19,42,.6))}
+.how div:nth-child(2){border-color:rgba(47,208,255,.45);background:linear-gradient(160deg,rgba(47,208,255,.12),rgba(17,19,42,.6))}
+.how div:nth-child(3){border-color:rgba(255,79,168,.45);background:linear-gradient(160deg,rgba(255,79,168,.12),rgba(17,19,42,.6))}
+.how div:nth-child(4){border-color:rgba(255,193,59,.45);background:linear-gradient(160deg,rgba(255,193,59,.12),rgba(17,19,42,.6))}
+.how div:nth-child(1) i{color:var(--green)}.how div:nth-child(2) i{color:var(--cyan)}.how div:nth-child(3) i{color:var(--pink)}.how div:nth-child(4) i{color:var(--gold)}
+.headline .gr{color:var(--lime)}
+.kpi.you{border-color:rgba(62,233,138,.5);background:linear-gradient(160deg,rgba(62,233,138,.16),var(--panel) 58%)}
+.kpi.miss{border-color:rgba(255,79,168,.5);background:linear-gradient(160deg,rgba(255,79,168,.16),var(--panel) 58%)}
+.kpi.miss .v{color:var(--pink)}
+.kpi.you:after,.kpi.miss:after{content:"";position:absolute;right:-60px;top:-60px;width:170px;height:170px;border-radius:50%;animation:glow 3.4s ease-in-out infinite}
+.kpi.you:after{background:radial-gradient(circle,rgba(62,233,138,.22),transparent 70%)}.kpi.miss:after{background:radial-gradient(circle,rgba(255,79,168,.22),transparent 70%)}
+.ladder{border-color:rgba(255,193,59,.35)}.pie{border-color:rgba(255,93,108,.35)}
+/* chapter nav */
+.chapnav{position:sticky;top:60px;z-index:28;background:rgba(10,9,32,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);margin:-26px 0 22px}
+.chapnav .wrap{display:flex;gap:8px;overflow-x:auto;padding-top:10px;padding-bottom:10px;scrollbar-width:none}
+.chapnav .wrap::-webkit-scrollbar{display:none}
+.chapnav a{--a:var(--gold);flex:0 0 auto;text-decoration:none;font:600 12px var(--mono);padding:6px 12px;border-radius:999px;border:1px solid color-mix(in srgb,var(--a) 50%,transparent);color:var(--ink2);background:color-mix(in srgb,var(--a) 9%,transparent);transition:.2s;white-space:nowrap}
+.chapnav a:hover,.chapnav a.on{background:var(--a);color:#0a0b19;border-color:var(--a);box-shadow:0 0 18px color-mix(in srgb,var(--a) 55%,transparent)}
+.sec,#c-snap{scroll-margin-top:118px}
+/* section accents */
+.sec{--a:var(--gold)}
+.sec>.eyebrow{color:var(--a);display:flex;gap:9px;align-items:center}
+.sec>.eyebrow:before{content:"";width:24px;height:3px;border-radius:3px;background:var(--a);box-shadow:0 0 10px var(--a)}
+.sec>h3{background:linear-gradient(92deg,#fff 0%,#fff 35%,var(--a) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;display:block;width:fit-content;max-width:100%}
+.chap{padding-top:8px}
+/* chart cards */
+.vzrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start;margin-top:16px}
+.vzrow.flip>:first-child{order:2}
+.vzrow.wide{grid-template-columns:1fr}
+.vz{padding:18px 20px;position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--a) 38%,var(--line));background:linear-gradient(170deg,color-mix(in srgb,var(--a) 10%,var(--panel)),var(--panel) 48%)}
+.vz:before{content:"";position:absolute;left:0;top:0;right:0;height:3px;background:linear-gradient(90deg,var(--a),color-mix(in srgb,var(--a) 20%,transparent))}
+.vz .ct{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--a)}
+.vz .ct>span{color:var(--dim);letter-spacing:.04em;text-transform:none;font-weight:500}
+.vzb{position:relative;min-height:140px}
+.vzb svg text{user-select:none}
+.vz-empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:14px;border:1px dashed var(--line2);border-radius:12px}
+.vz-empty b{color:var(--ink)}
+.hscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.heatscale{display:flex;align-items:center;gap:10px;margin-top:12px;font:11px var(--mono);color:var(--muted)}
+.heatscale i{flex:0 1 220px;height:10px;border-radius:6px;display:block}
+.vlg{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.vlg.center{justify-content:center}
+.vlg span{display:inline-flex;align-items:center;gap:6px}
+.vlg i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:0 0 auto}
+.vlg.col{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.vlg.col>span{display:grid;grid-template-columns:12px 1fr auto;gap:2px 8px;align-items:center;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.vlg.col em{font-style:normal;color:var(--ink);font-weight:600}.vlg.col b{color:var(--ink);font-family:var(--mono)}
+.vlg.col small{grid-column:2/-1;color:var(--green);font:11px var(--mono)}
+.vlg-sub{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 12px;font-size:11.5px;color:var(--dim);margin-top:2px}
+.lgb{border:1px solid var(--line2);background:var(--panel2);border-radius:999px;padding:5px 11px;font:600 12px var(--mono);color:var(--ink2);cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.lgb.off{opacity:.35;text-decoration:line-through}
+.gauges{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 14px}
+.gauge{text-align:center}
+.gauge svg{width:100%;max-width:200px;margin:0 auto;display:block;overflow:visible}
+.gauge .g-l{font:700 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;margin-top:-2px}
+.gauge .g-s{font-size:12px;color:var(--muted)}
+.quads{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.quad{cursor:pointer;border-radius:12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--q) 45%,transparent);background:color-mix(in srgb,var(--q) 9%,transparent);transition:.2s}
+.quad:hover{transform:translateY(-2px)}
+.quad.on{background:color-mix(in srgb,var(--q) 22%,transparent);box-shadow:0 0 0 1px var(--q),0 0 22px color-mix(in srgb,var(--q) 35%,transparent)}
+.quad b{display:block;font:800 11.5px var(--mono);color:var(--q);text-transform:uppercase;letter-spacing:.05em}
+.quad strong{display:block;font-size:21px;font-weight:850;color:var(--ink);letter-spacing:-.02em}
+.quad span{font-size:11.5px;color:var(--muted);line-height:1.4}
+.crumb{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:10px;min-height:30px}
+/* written read-outs */
+.story{border-radius:18px;padding:18px 20px;background:linear-gradient(160deg,color-mix(in srgb,var(--a) 13%,#0f1032),#0f1032 72%);border:1px solid color-mix(in srgb,var(--a) 38%,var(--line))}
+.story .st-k{font:700 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--a);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.story .st-k:before{content:"✦";font-size:14px;text-shadow:0 0 10px var(--a)}
+.story p{margin:0 0 12px;color:var(--ink2);font-size:15px;line-height:1.68;max-width:82ch}
+.story p b{color:var(--ink)}
+.story .st-read{font-size:13.5px;color:var(--muted);border-left:2px solid var(--a);padding-left:11px}
+.story .st-read>b:first-child{color:var(--a)}
+.story .st-move{display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(0,0,0,.28);border:1px dashed color-mix(in srgb,var(--a) 60%,transparent)}
+.story .st-move b{flex:0 0 auto;font:800 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;background:var(--a);color:#0a0b19;border-radius:6px;padding:3px 8px;margin-top:2px}
+.story .st-move span{color:var(--ink);font-size:14.5px;line-height:1.55}
+.story.exec{margin:0 0 16px;padding:22px 26px;border:1.5px solid transparent;background:linear-gradient(160deg,#141339,#0f1032 70%) padding-box,linear-gradient(115deg,var(--lime),var(--cyan) 30%,var(--purple) 55%,var(--pink) 78%,var(--gold)) border-box}
+.story.exec p{font-size:16.5px;color:#d9dcff}
+.story.exec .st-k{font-size:12.5px}
+.stw{margin-top:14px}
+.sec .stw .story{margin-top:0}
+@media(max-width:1000px){.vzrow{grid-template-columns:1fr}.vzrow.flip>:first-child{order:0}}
+@media(max-width:700px){.chapnav{top:54px;margin:-16px 0 16px}.chapnav .wrap{padding-top:8px;padding-bottom:8px}.vz{padding:14px}.story{padding:15px}.story p{font-size:14.5px}.story.exec{padding:18px}.story.exec p{font-size:15.5px}.gauges{gap:6px}}
+@media print{.chapnav{display:none!important}.story,.story.exec{background:#fff!important;border:1px solid #ccc!important}.story p,.story .st-move span{color:#222!important}.vz{background:#fff!important}.sec>h3{color:#111!important;background:none!important}}
 </style>
 </head>
 <body>
 <div class="top"><div class="wrap">
-  <div class="logo" onclick="goHome()"><i>$</i>Left on the Table</div>
-  <div class="tr"><span class="chip" id="mode"><span class="dot"></span><span>checking…</span></span><span class="chip" id="bal" style="display:none"></span><button class="btn sm" id="keyBtn" style="display:none" onclick="openKey()">Add API key</button></div>
+  <div class="logo" onclick="goHome()"><i>$</i>Traffic Gap Scanner</div>
+  <div class="tr"><span class="chip" id="mode"><span class="dot"></span><span>checking…</span></span><span class="chip" id="bal" style="display:none"></span><a class="btn sm dk navl" href="https://optimizationtheory.com/claudinox-seo-power-agent-pitch-tool/">Pitch deck ▸</a><button class="btn sm" id="keyBtn" style="display:none">Log in to scan</button></div>
 </div></div>
 
 <section id="start">
@@ -360,6 +454,7 @@ input[type=range]{width:100%;margin-top:10px;accent-color:#ffc13b;height:28px}
       <div class="f"><label>Target keyword <em>(optional)</em></label><input id="inKw" placeholder="e.g. personal injury lawyer" autocomplete="off"></div>
       <div class="f"><label>Country</label><select id="inCountry" onchange="syncRegion()"></select></div>
       <div class="f" id="regionBox"><label>State <em>(optional)</em></label><select id="inRegion"></select></div>
+      <div class="f nf"><label>Note to the AI <em>(optional)</em></label><input id="inNote" maxlength="600" placeholder="e.g. Only serves Bergen County. Ignore Spanish searches." autocomplete="off"></div>
       <button class="btn p go" type="submit">Scan ▸</button>
     </form>
     <div class="est" id="est"></div>
@@ -387,7 +482,9 @@ input[type=range]{width:100%;margin-top:10px;accent-color:#ffc13b;height:28px}
   <div class="sc-done" id="scDone"><div class="sc-card"><div class="eyebrow">✓ scan complete</div><h3 id="sdVal">$0</h3><p id="sdTxt"></p><button class="btn p" onclick="showResults()">See the full breakdown ▸</button></div></div>
 </div>
 
-<section id="results"><div class="wrap">
+<section id="results"><nav class="chapnav" id="chapnav"><div class="wrap">
+  <a href="#c-snap" style="--a:#b6ff3b">Snapshot</a><a href="#c-shape" style="--a:#ff4fa8">Market shape</a><a href="#c-rank" style="--a:#2fd0ff">Where you rank</a><a href="#c-opp" style="--a:#3ee98a">Opportunities</a><a href="#c-proj" style="--a:#ffc13b">Forecast</a><a href="#c-uni" style="--a:#9b8cff">Keyword universe</a><a href="#c-comp" style="--a:#ff5d6c">Competitors</a><a href="#serpSec" style="--a:#2fd0ff">Live results</a><a href="#c-topics" style="--a:#2dd4bf">Topics</a><a href="#c-list" style="--a:#ff8a3d">Action list</a><a href="#c-ovr" style="--a:#c56bff">Bottom line</a>
+</div></nav><div class="wrap"><div id="c-snap"></div>
   <div class="rhead">
     <div class="rdom"><img id="rFav" alt=""><div><h2 id="rDomain"></h2><div class="sub" id="rSub"></div></div></div>
     <div class="ract"><button class="btn sm" onclick="replayCurrent()">↻ Replay</button><button class="btn sm" onclick="shareSummary()" id="copyBtn">Share</button><button class="btn sm dk" onclick="window.print()">Save PDF</button><button class="btn sm dk" onclick="downloadScan()">Download data</button><button class="btn sm p" onclick="goHome()">New scan</button></div>
@@ -399,43 +496,81 @@ input[type=range]{width:100%;margin-top:10px;accent-color:#ffc13b;height:28px}
     <div class="kpi miss"><div class="l">Going to competitors</div><div class="v" id="kMarket">0</div><div class="s" id="kMarketS"></div></div>
     <div class="kpi table"><div class="l">Realistic 12-month gain</div><div class="v" id="kTable">0</div><div class="s" id="kTableS"></div></div>
   </div>
+  <div id="st-exec"></div>
+  <div class="vzrow" style="--a:#b6ff3b;margin:0 0 16px"><div class="card vz"><div class="ct">Market vital signs <span>white tick = market leader</span></div><div class="gauges" id="vzGauges"></div></div><div id="st-gauges"></div></div>
   <div class="card ladder"><div class="t"><span>Monthly visits from this market</span><span>today vs. what's possible</span></div><div id="ladder"></div></div>
+  <div class="stw" id="st-ladder" style="margin:-2px 0 16px"></div>
   <div class="pie card"><div class="t"><span>Who gets the clicks in this market</span><span id="pieTot"></span></div><div class="bar3" id="bar3"></div><div class="legend" id="bar3l"></div></div>
+  <div class="stw" id="st-share" style="margin:-20px 0 10px"></div>
 
-  <div class="sec"><div class="eyebrow">Traffic projection</div><h3>What the next 12 months could look like</h3><p class="ld">Projected from Google's click-through rate at each ranking position, applied to every search in this market. Pick a scenario.</p>
+  <div class="sec chap" id="c-shape" style="--a:#ff4fa8"><div class="eyebrow">The shape of the market</div><h3>Where the clicks actually live</h3><p class="ld">Before chasing rankings, it pays to know how this market is built: whether a handful of big searches hold the traffic, what people are trying to do when they search, and how specific they get.</p>
+    <div class="vzrow"><div class="card vz"><div class="ct">Click concentration curve <span>hover the curve</span></div><div class="vzb" id="vzLorenz"></div></div><div id="st-lorenz"></div></div>
+    <div class="vzrow flip" style="--a:#ffc13b"><div class="card vz"><div class="ct">Search intent wheel <span>hover a slice</span></div><div class="vzb" id="vzSun"></div></div><div id="st-sun"></div></div>
+    <div class="vzrow" style="--a:#2fd0ff"><div class="card vz"><div class="ct">Head terms vs. the long tail <span>stacked by your ranking</span></div><div class="vzb" id="vzTail"></div></div><div id="st-tail"></div></div>
+  </div>
+
+  <div class="sec chap" id="c-rank" style="--a:#2fd0ff"><div class="eyebrow">Where you rank today</div><h3>Your rankings, bucket by bucket</h3><p class="ld">Every search in the market sorted by where you sit for it, and the pages on your site doing the heavy lifting.</p>
+    <div class="vzrow"><div class="card vz"><div class="ct">Ranking position spread <span>hover a bar</span></div><div class="vzb" id="vzHist"></div></div><div id="st-hist"></div></div>
+    <div class="vzrow flip" id="rowPages" style="--a:#c56bff"><div class="card vz"><div class="ct">Your pages doing the work <span>est. visits / month</span></div><div class="vzb" id="vzPages"></div></div><div id="st-pages"></div></div>
+  </div>
+
+  <div class="sec chap" id="c-opp" style="--a:#3ee98a"><div class="eyebrow">The opportunity map</div><h3>What to go after first</h3><p class="ld">Difficulty against demand for every search, then the pages closest to breaking into the top 3.</p>
+    <div class="vzrow" style="--a:#b6ff3b"><div class="card vz"><div class="ct">Opportunity matrix <span>tap a card to filter</span></div><div class="vzb" id="vzMatrix"></div><div class="quads" id="vzMatrixQ"></div></div><div id="st-matrix"></div></div>
+    <div class="vzrow flip" style="--a:#ffc13b"><div class="card vz"><div class="ct">The launchpad: striking distance <span>now → top 3</span></div><div class="vzb" id="vzLaunch"></div></div><div id="st-launch"></div></div>
+  </div>
+
+  <div class="sec" id="c-proj" style="--a:#ffc13b"><div class="eyebrow">Traffic projection</div><h3>What the next 12 months could look like</h3><p class="ld">Projected from Google's click-through rate at each ranking position, applied to every search in this market. Pick a scenario.</p>
     <div class="card proj"><div class="ptop"><div class="seg" id="pScen"><button data-v="cons">Conservative</button><button class="on" data-v="exp">Expected</button><button data-v="agg">Aggressive</button></div><div class="pnote" id="pNote"></div></div>
       <div class="pchart"><svg id="projChart"></svg></div><div class="pstats" id="pStats"></div></div>
+    <div class="stw" id="st-proj"></div>
     <div class="two" style="margin-top:16px">
       <div class="card ctrc"><div class="ct">The SERP click-through curve</div><div class="ctrbars" id="ctrBars"></div>
         <div class="slider"><label>If you reached position <b id="tPos">3</b> on every search</label><input type="range" min="1" max="10" value="3" id="tRange"></div><div class="tout" id="tOut"></div></div>
       <div class="card brk"><div class="ct">Where the growth comes from <span id="brkScen"></span></div><div id="brk"></div></div>
-    </div></div>
+    </div>
+    <div class="stw" id="st-ctr"></div>
+    <div class="vzrow" style="--a:#ffe14d"><div class="card vz"><div class="ct">Growth waterfall <span>expected scenario</span></div><div class="vzb" id="vzWater"></div></div><div id="st-water"></div></div>
+  </div>
 
-  <div class="sec"><div class="eyebrow">The keyword universe</div><h3>Every search in your market</h3><p class="ld">Each bubble is a real search, sized by what its clicks are worth and grouped by topic. Bright ones are yours. Dark ones are traffic someone else is getting.</p>
+  <div class="sec" id="c-uni" style="--a:#9b8cff"><div class="eyebrow">The keyword universe</div><h3>Every search in your market</h3><p class="ld">Each bubble is a real search, grouped by topic. Bright ones are yours. Dark ones are traffic someone else is getting.</p>
     <div class="card uni"><div class="ctl"><div class="seg" id="uFilter"><button class="on" data-v="all">All</button><button data-v="miss">Untapped</button><button data-v="mine">Yours</button></div><div class="seg" id="uSize"><button class="on" data-v="vol">Size: visits</button><button data-v="value">$ value</button></div></div><canvas id="uni"></canvas>
-      <div class="lg"><span><i style="background:var(--green)"></i>You're top 3</span><span><i style="background:#2fd0ff"></i>Page one</span><span><i style="background:var(--gold)"></i>Striking distance (11–20)</span><span><i style="background:var(--violet)"></i>Ranked 21+</span><span><i style="background:#141735;border:1px solid var(--gold)"></i>Not ranking (untapped)</span></div></div></div>
+      <div class="lg"><span><i style="background:var(--green)"></i>You're top 3</span><span><i style="background:#2fd0ff"></i>Page one</span><span><i style="background:var(--gold)"></i>Striking distance (11–20)</span><span><i style="background:var(--violet)"></i>Ranked 21+</span><span><i style="background:#141735;border:1px solid var(--gold)"></i>Not ranking (untapped)</span></div></div>
+    <div class="stw" id="st-uni"></div></div>
 
-  <div class="sec"><div class="eyebrow">Competitors</div><h3>Who's taking the clicks</h3><p class="ld" id="compLd"></p>
-    <div class="two"><div class="card comp" id="compList"></div><div class="card donut"><svg id="donut" viewBox="0 0 260 260"></svg><div class="dl" id="donutL"></div></div></div></div>
+  <div class="sec" id="c-comp" style="--a:#ff5d6c"><div class="eyebrow">Competitors</div><h3>Who's taking the clicks</h3><p class="ld" id="compLd"></p>
+    <div class="two"><div class="card comp" id="compList"></div><div class="card donut"><svg id="donut" viewBox="0 0 260 260"></svg><div class="dl" id="donutL"></div></div></div>
+    <div class="stw" id="st-comp"></div>
+    <div class="vzrow" style="--a:#ff4fa8"><div class="card vz"><div class="ct">Strength radar <span>tap names to toggle</span></div><div class="vzb" id="vzRadar"></div></div><div id="st-radar"></div></div>
+    <div class="card vz" style="--a:#ff8a3d;margin-top:16px"><div class="ct">Who owns each topic <span>share of each topic's clicks</span></div><div class="vzb hscroll" id="vzHeat"></div></div>
+    <div class="stw" id="st-heat"></div>
+    <div class="card vz" style="--a:#c56bff;margin-top:16px"><div class="ct">Where the clicks flow <div class="seg" id="skMode"><button class="on" data-v="named">Named sites</button><button data-v="all">All clicks</button></div></div><div class="vzb" id="vzSankey"></div></div>
+    <div class="stw" id="st-sankey"></div>
+  </div>
 
-  <div class="sec" id="serpSec" style="display:none"><div class="eyebrow">Live local results</div><h3 id="serpH">What searchers actually see</h3><p class="ld">Checked live on Google for this location, for the most valuable searches in the market.</p><div class="serps" id="serps"></div></div>
+  <div class="sec" id="serpSec" style="display:none;--a:#2fd0ff"><div class="eyebrow">Live local results</div><h3 id="serpH">What searchers actually see</h3><p class="ld">Checked live on Google for this location, for the most valuable searches in the market.</p><div class="serps" id="serps"></div><div class="stw" id="st-serp"></div></div>
 
-  <div class="sec"><div class="eyebrow">Untapped topics</div><h3>Where the money is</h3><p class="ld">The market grouped into topics, ranked by the click value you're not getting.</p><div class="topics" id="topics"></div></div>
+  <div class="sec" id="c-topics" style="--a:#2dd4bf"><div class="eyebrow">Untapped topics</div><h3>Where the money is</h3><p class="ld">The market grouped into topics, ranked by the click value you're not getting.</p><div class="topics" id="topics"></div>
+    <div class="stw" id="st-topics"></div>
+    <div class="card vz" style="margin-top:16px"><div class="ct">The market map <span>topics → searches</span></div><div class="crumb" id="tmCrumb"></div><div class="vzb" id="vzTree"></div></div>
+    <div class="stw" id="st-tree"></div></div>
 
-  <div class="sec"><div class="eyebrow">The opportunity list</div><h3>Searches to go after</h3><p class="ld">Sorted by the value you'd gain reaching the top 3. Striking distance means you already rank 4–20 and a push gets you there fastest.</p>
+  <div class="sec" id="c-list" style="--a:#ff8a3d"><div class="eyebrow">The opportunity list</div><h3>Searches to go after</h3><p class="ld">Sorted by the value you'd gain reaching the top 3. Striking distance means you already rank 4–20 and a push gets you there fastest.</p>
     <div class="tabs seg" id="oTabs"><button class="on" data-v="all">All opportunities</button><button data-v="close">Striking distance</button><button data-v="none">Not ranking yet</button><button data-v="mine">Your top-3 wins</button></div>
-    <div class="card tblwrap"><table class="tbl" id="oTable"></table></div></div>
+    <div class="card tblwrap"><table class="tbl" id="oTable"></table></div>
+    <div class="stw" id="st-table"></div></div>
 
-  <div class="sec ovsec"><div class="eyebrow" style="color:var(--pink)">The overview</div><h3>What you have today, and what you could have</h3><p class="ld">Same market, three snapshots. Every number comes from the click-through curve applied to the searches above.</p><div id="ovr"></div></div>
+  <div class="sec ovsec" id="c-ovr" style="--a:#c56bff"><div class="eyebrow">The overview</div><h3>What you have today, and what you could have</h3><p class="ld">Same market, three snapshots. Every number comes from the click-through curve applied to the searches above.</p><div id="ovr"></div><div class="stw" id="st-ovr"></div></div>
   <div class="note" id="method"></div>
 </div></section>
 
 <div id="tip"></div>
-<div class="modal" id="keyModal"><div class="box"><h4>Use your DataForSEO key</h4><p>Calls go straight from your browser to DataForSEO. Your login is kept only in this browser tab unless you tick remember. For the safest setup, run the local server from the repo instead.</p>
+<div class="modal" id="keyModal" style="display:none" onclick="if(event.target===this)closeKey()"><div class="box"><h4>Use your own DataForSEO key</h4><p>Find your <b>API login</b> and <b>API password</b> at <a href="https://app.dataforseo.com/api-access" target="_blank" rel="noopener" style="color:var(--cyan)">app.dataforseo.com → API Access</a>. Calls go straight from your browser to DataForSEO; nothing passes through this site. Your login stays in this browser tab unless you tick remember. A typical scan costs about $0.30 to $0.60 in credits.</p>
   <div class="f"><label>API login</label><input id="kLogin" autocomplete="off"></div><div class="f"><label>API password</label><input id="kPw" type="password" autocomplete="off"></div>
   <label style="font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="kRem"> Remember on this device</label>
+  <div id="keyErr" style="font-size:13px;color:var(--gold);min-height:18px;margin-bottom:10px"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn sm" onclick="closeKey()">Cancel</button><button class="btn sm" onclick="clearKey()">Forget key</button><button class="btn sm p" onclick="saveKey()">Save</button></div></div></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
+<script src="insights.js?v=2"></script>
 </body>
 </html>
