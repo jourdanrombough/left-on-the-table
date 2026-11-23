@@ -51,6 +51,12 @@ about this site, and the move to make):
 
 The report layer lives in `insights.js` and reads the finished scan, so the scan engine in `app.js` is unchanged by it.
 
+### The original version (v1)
+
+The first version is still live at [/v1/](https://jourdanrombough.github.io/left-on-the-table/v1/) so older links keep
+working. `server.py`, `api.php`, `ltt-config.sample.php` and `Start Left on the Table.command` belong to v1 and are kept
+for anyone self-hosting it; v2 runs entirely in the browser with your own key.
+
 ### Add your own example scan
 
 Run a scan, tap **Download data**, drop the `.json` into `examples/` and add a line for it to `examples/index.json`.
