@@ -4,19 +4,21 @@
    Loads after app.js and wraps showResults(), so the scan engine is untouched.
    Uses globals from app.js: SCAN, R, scenarios, ctr, CTR, PACK, fmt, short, money, esc, fav, $ */
 (() => {
-  const P = { green: "#3ee98a", lime: "#b6ff3b", cyan: "#2fd0ff", blue: "#4d7cff", violet: "#9b8cff", purple: "#c56bff", pink: "#ff4fa8", red: "#ff5d6c", orange: "#ff8a3d", gold: "#ffc13b", yellow: "#ffe14d", teal: "#2dd4bf", slate: "#6b7099" };
-  const ST = { top: P.green, page1: P.cyan, close: P.gold, far: P.violet, none: P.pink };
+  const P = { green: "#1FB462", lime: "#8CC63F", cyan: "#0AA5E6", blue: "#2F80ED", violet: "#7C4DFF", purple: "#A64BF4", pink: "#FF3D8B", red: "#E5394B", orange: "#FF6A13", gold: "#F5A400", yellow: "#FFC400", teal: "#12B5A6", slate: "#8A97A6" };
+  const ST = { top: P.green, page1: P.blue, close: P.gold, far: P.violet, none: P.pink };
   const STN = { top: "Top 3", page1: "Page one (#4 to #10)", close: "Page two (#11 to #20)", far: "Ranked #21+", none: "Not ranking" };
   const ORDER = ["top", "page1", "close", "far", "none"];
   const RAINBOW = [P.cyan, P.pink, P.gold, P.lime, P.purple, P.orange, P.teal, P.blue, P.yellow, P.violet, P.green, P.red];
   const SITEC = [P.pink, P.cyan, P.orange, P.purple, P.yellow, P.teal];
-  const MONO = "JetBrains Mono, ui-monospace, Menlo, monospace", SANS = "Instrument Sans, Helvetica Neue, Arial, sans-serif";
+  const MONO = "Roboto Mono, ui-monospace, Menlo, monospace", SANS = "Roboto, Helvetica Neue, Arial, sans-serif";
 
   /* ---------- small helpers ---------- */
   const sum = (a, f) => a.reduce((s, x) => s + (+f(x) || 0), 0);
   const pc = x => { const v = 100 * (x || 0); if (v <= 0) return "0%"; if (v < 0.1) return "<0.1%"; if (v < 10) return v.toFixed(1).replace(/\.0$/, "") + "%"; return Math.round(v) + "%"; };
   const cut = (s, n) => { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, Math.max(1, n - 1)) + "…" : s; };
-  const B = (s, c) => `<b${c ? ` style="color:${c}"` : ""}>${s}</b>`;
+  const TXTC = { "#F5A400": "#C27C00", "#FFC400": "#A87A00", "#8CC63F": "#5E8E1C", "#0AA5E6": "#0284C7", "#1FB462": "#138A4A", "#FF6A13": "#E0560B", "#12B5A6": "#0E8F84", "#4FD18B": "#138A4A" };
+  const tc = c => TXTC[c] || c;
+  const B = (s, c) => `<b${c ? ` style="color:${tc(c)}"` : ""}>${s}</b>`;
   const q = s => "“" + esc(s) + "”";
   const and = a => a.length <= 1 ? (a[0] || "") : a.length === 2 ? a[0] + " and " + a[1] : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
   const times = r => !isFinite(r) || r < 1.15 ? null : r >= 10 ? Math.round(r) + "×" : r.toFixed(1).replace(/\.0$/, "") + "×";
@@ -42,7 +44,7 @@
     const svg = d3.select(box).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("width", Wfix ? W : "100%").attr("height", H).style("display", "block").style("overflow", "visible").style("max-width", Wfix ? "none" : "100%");
     return { svg, W, H, box };
   }
-  const T = (g, x, y, s, o = {}) => g.append("text").attr("x", x).attr("y", y).attr("fill", o.c || "#b3b7e0").attr("font-size", o.fs || 11).attr("font-family", o.ff || MONO).attr("font-weight", o.fw || 500).attr("text-anchor", o.a || "start").text(s);
+  const T = (g, x, y, s, o = {}) => g.append("text").attr("x", x).attr("y", y).attr("fill", tc(o.c || "#33475B")).attr("font-size", o.fs || 11).attr("font-family", o.ff || MONO).attr("font-weight", o.fw || 500).attr("text-anchor", o.a || "start").text(s);
   function grad(svg, id, stops, vertical) {
     let defs = svg.select("defs"); if (defs.empty()) defs = svg.insert("defs", ":first-child");
     const g = defs.append("linearGradient").attr("id", id);
@@ -101,20 +103,20 @@
       const c = svg.append("g").attr("transform", `translate(${S / 2},${S / 2 + 2})`);
       const a0 = -0.75 * Math.PI, a1 = 0.75 * Math.PI, sc = d3.scaleLinear().domain([0, 1]).range([a0, a1]).clamp(true);
       const arc = d3.arc().innerRadius(r - w).outerRadius(r).cornerRadius(w / 2);
-      c.append("path").attr("d", arc({ startAngle: a0, endAngle: a1 })).attr("fill", "#1b1e44");
-      [0, .25, .5, .75, 1].forEach(t => { const an = sc(t); c.append("line").attr("x1", Math.sin(an) * (r + 4)).attr("y1", -Math.cos(an) * (r + 4)).attr("x2", Math.sin(an) * (r + 8)).attr("y2", -Math.cos(an) * (r + 8)).attr("stroke", "#3b3f73").attr("stroke-width", 1.5); });
+      c.append("path").attr("d", arc({ startAngle: a0, endAngle: a1 })).attr("fill", "#EAF0F7");
+      [0, .25, .5, .75, 1].forEach(t => { const an = sc(t); c.append("line").attr("x1", Math.sin(an) * (r + 4)).attr("y1", -Math.cos(an) * (r + 4)).attr("x2", Math.sin(an) * (r + 8)).attr("y2", -Math.cos(an) * (r + 8)).attr("stroke", "#C5D1DE").attr("stroke-width", 1.5); });
       c.append("path").attr("fill", fill).style("filter", glow(g.a))
         .transition().duration(1500).delay(j * 160).ease(d3.easeCubicOut)
         .attrTween("d", () => { const i = d3.interpolate(a0, sc(Math.max(g.v, 0.006))); return t => arc({ startAngle: a0, endAngle: i(t) }); });
       if (g.lv != null && g.lv > 0) {
         const an = sc(g.lv);
-        c.append("line").attr("x1", Math.sin(an) * (r - w - 4)).attr("y1", -Math.cos(an) * (r - w - 4)).attr("x2", Math.sin(an) * (r + 5)).attr("y2", -Math.cos(an) * (r + 5)).attr("stroke", "#fff").attr("stroke-width", 2.5).attr("stroke-linecap", "round").attr("opacity", 0).transition().delay(1300 + j * 160).attr("opacity", .95);
+        c.append("line").attr("x1", Math.sin(an) * (r - w - 4)).attr("y1", -Math.cos(an) * (r - w - 4)).attr("x2", Math.sin(an) * (r + 5)).attr("y2", -Math.cos(an) * (r + 5)).attr("stroke", "#0B2545").attr("stroke-width", 2.5).attr("stroke-linecap", "round").attr("opacity", 0).transition().delay(1300 + j * 160).attr("opacity", .95);
         tip(c.append("circle").attr("cx", Math.sin(an) * (r - w / 2)).attr("cy", -Math.cos(an) * (r - w / 2)).attr("r", 12).attr("fill", "transparent").style("cursor", "help"), () => `<b>${esc(lead.d)}</b>${tr("Market leader on this measure", pc(g.lv), P.pink)}${tr("You", pc(g.v), g.a)}`);
       }
       const big = T(c, 0, 4, pc(g.v), { c: g.a, fs: 30, ff: SANS, fw: 800, a: "middle" }).attr("opacity", 0);
       big.transition().delay(400 + j * 160).duration(600).attr("opacity", 1);
-      T(c, 0, 24, g.lv != null && g.lv > 0 ? "leader " + pc(g.lv) : "", { c: "#9ea3d4", fs: 10, a: "middle" });
-      d.insertAdjacentHTML("beforeend", `<div class="g-l" style="color:${g.a}">${g.l}</div><div class="g-s">${g.s}</div>`);
+      T(c, 0, 24, g.lv != null && g.lv > 0 ? "leader " + pc(g.lv) : "", { c: "#6B7A8C", fs: 10, a: "middle" });
+      d.insertAdjacentHTML("beforeend", `<div class="g-l" style="color:${tc(g.a)}">${g.l}</div><div class="g-s">${g.s}</div>`);
     });
   }
   function storyGauges() {
@@ -153,14 +155,14 @@
     const { svg, W, H } = svgIn("vzLorenz", 330), m = { l: 46, r: 18, t: 16, b: 40 };
     const x = d3.scaleLinear().domain([0, 1]).range([m.l, W - m.r]), y = d3.scaleLinear().domain([0, 1]).range([H - m.b, m.t]);
     [0, .25, .5, .75, 1].forEach(t => {
-      svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1d2044");
-      T(svg, m.l - 8, y(t) + 4, Math.round(t * 100) + "%", { c: "#6a70a8", fs: 10, a: "end" });
-      T(svg, x(t), H - m.b + 16, Math.round(t * 100) + "%", { c: "#6a70a8", fs: 10, a: "middle" });
+      svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#E3EAF2");
+      T(svg, m.l - 8, y(t) + 4, Math.round(t * 100) + "%", { c: "#7D8A9B", fs: 10, a: "end" });
+      T(svg, x(t), H - m.b + 16, Math.round(t * 100) + "%", { c: "#7D8A9B", fs: 10, a: "middle" });
     });
-    T(svg, (m.l + W - m.r) / 2, H - 4, "share of searches, biggest first →", { c: "#7a7fae", fs: 10.5, a: "middle" });
-    T(svg, m.l + 6, m.t + 12, "↑ share of clicks", { c: "#7a7fae", fs: 10.5 });
-    svg.append("line").attr("x1", x(0)).attr("y1", y(0)).attr("x2", x(1)).attr("y2", y(1)).attr("stroke", "#4a4f8a").attr("stroke-dasharray", "4 5");
-    T(svg, x(.62), y(.55), "if every search were equal", { c: "#5d6296", fs: 10 }).attr("transform", `rotate(${-Math.atan2(y(0) - y(1), x(1) - x(0)) * 180 / Math.PI},${x(.62)},${y(.55)})`);
+    T(svg, (m.l + W - m.r) / 2, H - 4, "share of searches, biggest first →", { c: "#5D6B79", fs: 10.5, a: "middle" });
+    T(svg, m.l + 6, m.t + 12, "↑ share of clicks", { c: "#5D6B79", fs: 10.5 });
+    svg.append("line").attr("x1", x(0)).attr("y1", y(0)).attr("x2", x(1)).attr("y2", y(1)).attr("stroke", "#B8C6D6").attr("stroke-dasharray", "4 5");
+    T(svg, x(.62), y(.55), "if every search were equal", { c: "#8A97A6", fs: 10 }).attr("transform", `rotate(${-Math.atan2(y(0) - y(1), x(1) - x(0)) * 180 / Math.PI},${x(.62)},${y(.55)})`);
     const fillG = grad(svg, "lzf", [[P.pink, .38], [P.gold, .04]], true), lineG = grad(svg, "lzl", [P.pink, P.gold, P.lime]);
     const area = d3.area().x(d => x(d.x)).y0(y(0)).y1(d => y(d.m)).curve(d3.curveMonotoneX);
     const line = d3.line().x(d => x(d.x)).y(d => y(d.m)).curve(d3.curveMonotoneX);
@@ -175,15 +177,15 @@
     const p = L.p80, gg = svg.append("g").attr("opacity", 0);
     gg.append("line").attr("x1", x(p.x)).attr("x2", x(p.x)).attr("y1", y(0)).attr("y2", y(p.m)).attr("stroke", P.gold).attr("stroke-dasharray", "3 3");
     gg.append("line").attr("x1", m.l).attr("x2", x(p.x)).attr("y1", y(p.m)).attr("y2", y(p.m)).attr("stroke", P.gold).attr("stroke-dasharray", "3 3");
-    gg.append("circle").attr("cx", x(p.x)).attr("cy", y(p.m)).attr("r", 6).attr("fill", P.gold).attr("stroke", "#0a0b19").attr("stroke-width", 2);
+    gg.append("circle").attr("cx", x(p.x)).attr("cy", y(p.m)).attr("r", 6).attr("fill", P.gold).attr("stroke", "#FFFFFF").attr("stroke-width", 2);
     const right = p.x > .55;
     T(gg, x(p.x) + (right ? -10 : 10), y(p.m) + 22, `${pc(p.x)} of searches = 80% of clicks`, { c: P.gold, fs: 11.5, fw: 700, a: right ? "end" : "start" });
     gg.transition().delay(1500).duration(500).attr("opacity", 1);
     const lg = svg.append("g").attr("transform", `translate(${W - m.r - 150},${y(.2)})`);
-    lg.append("rect").attr("width", 14).attr("height", 3).attr("y", -4).attr("fill", P.pink); T(lg, 20, 0, "whole market", { c: "#c9cdf5", fs: 10.5 });
-    if (Y > 0) { lg.append("rect").attr("width", 14).attr("height", 3).attr("y", 12).attr("fill", P.green); T(lg, 20, 16, "your clicks", { c: "#c9cdf5", fs: 10.5 }); }
+    lg.append("rect").attr("width", 14).attr("height", 3).attr("y", -4).attr("fill", P.pink); T(lg, 20, 0, "whole market", { c: "#33475B", fs: 10.5 });
+    if (Y > 0) { lg.append("rect").attr("width", 14).attr("height", 3).attr("y", 12).attr("fill", P.green); T(lg, 20, 16, "your clicks", { c: "#33475B", fs: 10.5 }); }
     const hv = svg.append("g").style("display", "none");
-    hv.append("line").attr("y1", m.t).attr("y2", H - m.b).attr("stroke", "#8b90c8").attr("stroke-dasharray", "2 3");
+    hv.append("line").attr("y1", m.t).attr("y2", H - m.b).attr("stroke", "#94A3B8").attr("stroke-dasharray", "2 3");
     hv.append("circle").attr("r", 5).attr("fill", P.pink).attr("stroke", "#fff").attr("stroke-width", 1.5);
     svg.append("rect").attr("x", m.l).attr("y", m.t).attr("width", W - m.l - m.r).attr("height", H - m.t - m.b).attr("fill", "transparent")
       .on("pointermove pointerdown", e => {
@@ -237,17 +239,17 @@
     const arc = d3.arc().startAngle(d => d.a0).endAngle(d => d.a1).padAngle(.008).padRadius(R0 / 2)
       .innerRadius(d => d.depth === 1 ? R0 * .38 : R0 * .7).outerRadius(d => d.depth === 1 ? R0 * .68 : R0).cornerRadius(3);
     const nodes = root.descendants().filter(d => d.depth);
-    const cBig = T(g, 0, 2, pc(1), { c: "#fff", fs: 24, ff: SANS, fw: 800, a: "middle" }), cSm = T(g, 0, 20, "of market clicks", { c: "#9ea3d4", fs: 10, a: "middle" }), cTop = T(g, 0, -22, "ALL INTENTS", { c: "#9ea3d4", fs: 9.5, fw: 700, a: "middle" });
-    const reset = () => { cTop.text("ALL INTENTS").attr("fill", "#9ea3d4"); cBig.text(fmt(tot)).attr("fill", "#fff"); cSm.text("clicks / month"); paths.attr("opacity", d => d.depth === 1 ? 1 : .92); };
+    const cBig = T(g, 0, 2, pc(1), { c: "#0B2545", fs: 24, ff: SANS, fw: 800, a: "middle" }), cSm = T(g, 0, 20, "of market clicks", { c: "#6B7A8C", fs: 10, a: "middle" }), cTop = T(g, 0, -22, "ALL INTENTS", { c: "#6B7A8C", fs: 9.5, fw: 700, a: "middle" });
+    const reset = () => { cTop.text("ALL INTENTS").attr("fill", "#6B7A8C"); cBig.text(fmt(tot)).attr("fill", "#0B2545"); cSm.text("clicks / month"); paths.attr("opacity", d => d.depth === 1 ? 1 : .92); };
     const paths = g.selectAll("path").data(nodes).enter().append("path")
-      .attr("fill", d => d.depth === 1 ? IN[d.data.name] : ST[d.data.name]).attr("stroke", "#0c0e22").attr("stroke-width", 1).style("cursor", "pointer")
+      .attr("fill", d => d.depth === 1 ? IN[d.data.name] : ST[d.data.name]).attr("stroke", "#FFFFFF").attr("stroke-width", 1).style("cursor", "pointer")
       .each(d => { d.a0 = d.x0; d.a1 = d.x0; });
     paths.transition().duration(1300).delay(d => d.depth === 1 ? 0 : 450).ease(d3.easeCubicOut).attrTween("d", d => { const i = d3.interpolate(d.x0, d.x1); return t => { d.a0 = d.x0; d.a1 = i(t); return arc(d); }; });
     paths.on("pointermove pointerdown", (e, d) => {
       const intent = d.depth === 1 ? d.data.name : d.data.intent, o = ins.find(z => z.k === intent);
       paths.attr("opacity", z => (z === d || z.parent === d || (d.depth === 2 && z === d.parent)) ? 1 : .25);
-      if (d.depth === 1) { cTop.text(intent.toUpperCase()).attr("fill", IN[intent]); cBig.text(pc(d.value / tot)).attr("fill", IN[intent]); cSm.text("of market clicks"); }
-      else { cTop.text(STN[d.data.name].toUpperCase()).attr("fill", ST[d.data.name]); cBig.text(pc(d.value / d.parent.value)).attr("fill", ST[d.data.name]); cSm.text("of " + intent + " clicks"); }
+      if (d.depth === 1) { cTop.text(intent.toUpperCase()).attr("fill", tc(IN[intent])); cBig.text(pc(d.value / tot)).attr("fill", tc(IN[intent])); cSm.text("of market clicks"); }
+      else { cTop.text(STN[d.data.name].toUpperCase()).attr("fill", tc(ST[d.data.name])); cBig.text(pc(d.value / d.parent.value)).attr("fill", tc(ST[d.data.name])); cSm.text("of " + intent + " clicks"); }
       tipOn(e, `<b style="text-transform:capitalize">${esc(intent)}${d.depth === 2 ? " · " + STN[d.data.name] : ""}</b>${tr("Market clicks / mo", fmt(d.value))}${tr("Share of all clicks", pc(d.value / tot))}${d.depth === 1 ? tr("Searches", fmt(o.n)) + tr("You capture", pc(o.now / (o.mk || 1)), P.green) : ""}`);
     }).on("pointerleave", () => { reset(); tipOff(); });
     reset();
@@ -262,7 +264,7 @@
     const tc = top.k === "unclassified" && ins[1] ? ins[1] : top;
     return {
       c: P.gold,
-      read: `The inner ring splits the market by what people are trying to do when they search. The outer ring shows how much of each slice you rank for, using the same colors as the rest of the report: green is your top-3 territory, cyan is page one, gold is page two, violet is deeper, and hot pink is searches where you don't show up at all. Hover a slice to see its numbers in the center.`,
+      read: `The inner ring splits the market by what people are trying to do when they search. The outer ring shows how much of each slice you rank for, using the same colors as the rest of the report: green is your top-3 territory, blue is page one, amber is page two, purple is deeper, and hot pink is searches where you don't show up at all. Hover a slice to see its numbers in the center.`,
       say: [
         `The biggest slice is ${B(tc.k, IN[tc.k])} intent: people ${INX[tc.k]}. It accounts for ${B(pc(tc.mk / tot), IN[tc.k])} of the clicks in this market across ${plural(tc.n, "search", "searches")}. ${tc.k === "commercial" ? "That's good news for a business: these searchers are shopping, and they turn into leads at a much higher rate than people just reading." : tc.k === "informational" ? "These searchers are earlier in their journey. They rarely convert on the first visit, but whoever teaches them first tends to be the one they come back to." : tc.k === "transactional" ? "These are the hottest searches there are: the person is ready to act right now." : ""}`,
         best && cap(best) < .005 ? `Right now you capture almost none of the clicks in any of the main intent groups, so every slice of this wheel is open ground. That's not unusual for a site entering a new market.` : best && worst && best !== worst ? `Your coverage is uneven. You capture ${B(pc(cap(best)), P.green)} of the ${best.k} clicks but only ${B(pc(cap(worst)), P.pink)} of the ${worst.k} ones. ${worst.k === "commercial" || worst.k === "transactional" ? "That's the expensive gap: the buyer-ready searches are the ones going to competitors." : worst.k === "informational" ? "That gap is usually filled with guides, explainers and FAQ content that feeds visitors into your service pages." : ""}` : best ? `You capture ${B(pc(cap(best)), P.green)} of the ${best.k} clicks in this market.` : null,
@@ -284,8 +286,8 @@
   function drawTail() {
     const b = tailData(), { svg, W, H } = svgIn("vzTail", 320), m = { l: 46, r: 10, t: 34, b: 48 };
     const x = d3.scaleBand().domain(b.map(o => o.l)).range([m.l, W - m.r]).padding(.28), y = d3.scaleLinear().domain([0, d3.max(b, o => o.mk) || 1]).nice().range([H - m.b, m.t]);
-    y.ticks(4).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1d2044"); T(svg, m.l - 8, y(t) + 4, short(t), { c: "#6a70a8", fs: 10, a: "end" }); });
-    T(svg, 4, m.t - 18, W < 560 ? "market clicks / mo · w = words · grey = searches" : "market clicks / mo", { c: "#7a7fae", fs: 10.5 });
+    y.ticks(4).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#E3EAF2"); T(svg, m.l - 8, y(t) + 4, short(t), { c: "#7D8A9B", fs: 10, a: "end" }); });
+    T(svg, 4, m.t - 18, W < 560 ? "market clicks / mo · w = words · grey = searches" : "market clicks / mo", { c: "#5D6B79", fs: 10.5 });
     b.forEach((o, j) => {
       let acc = 0; const g = svg.append("g");
       ORDER.forEach(s => {
@@ -296,8 +298,8 @@
       });
       T(svg, x(o.l) + x.bandwidth() / 2, y(o.mk) - 8, "you " + pc(o.now / (o.mk || 1)), { c: P.green, fs: 10.5, fw: 700, a: "middle" }).attr("opacity", 0).transition().delay(900 + j * 110).attr("opacity", 1);
       const nar = W < 560;
-      T(svg, x(o.l) + x.bandwidth() / 2, H - m.b + 16, nar ? o.l.replace(/ words?/, "w") : o.l, { c: "#d6d9ff", fs: nar ? 10 : 10.5, fw: 600, a: "middle" });
-      T(svg, x(o.l) + x.bandwidth() / 2, H - m.b + 30, nar ? fmt(o.n) : plural(o.n, "search", "searches"), { c: "#6a70a8", fs: 9.5, a: "middle" });
+      T(svg, x(o.l) + x.bandwidth() / 2, H - m.b + 16, nar ? o.l.replace(/ words?/, "w") : o.l, { c: "#1E3550", fs: nar ? 10 : 10.5, fw: 600, a: "middle" });
+      T(svg, x(o.l) + x.bandwidth() / 2, H - m.b + 30, nar ? fmt(o.n) : plural(o.n, "search", "searches"), { c: "#7D8A9B", fs: 9.5, a: "middle" });
     });
     const lg = document.createElement("div"); lg.className = "vlg"; byId("vzTail").appendChild(lg);
     lg.innerHTML = ORDER.map(s => `<span><i style="background:${ST[s]}"></i>${STN[s]}</span>`).join("");
@@ -326,17 +328,17 @@
   function drawHist() {
     const b = histData(), { svg, W, H } = svgIn("vzHist", 320), m = { l: 40, r: 8, t: 26, b: 48 };
     const x = d3.scaleBand().domain(b.map(o => o.l)).range([m.l, W - m.r]).padding(.22), y = d3.scaleSqrt().domain([0, d3.max(b, o => o.n) || 1]).range([H - m.b, m.t]);
-    [0, .25, .5, 1].map(f => Math.round(f * (d3.max(b, o => o.n) || 1))).filter((v, i, a) => a.indexOf(v) === i).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1d2044"); T(svg, m.l - 6, y(t) + 4, fmt(t), { c: "#6a70a8", fs: 10, a: "end" }); });
-    T(svg, 4, 12, W < 560 ? "searches (√ scale) · green = visits/mo" : "searches (√ scale)", { c: "#7a7fae", fs: 10.5 });
+    [0, .25, .5, 1].map(f => Math.round(f * (d3.max(b, o => o.n) || 1))).filter((v, i, a) => a.indexOf(v) === i).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#E3EAF2"); T(svg, m.l - 6, y(t) + 4, fmt(t), { c: "#7D8A9B", fs: 10, a: "end" }); });
+    T(svg, 4, 12, W < 560 ? "searches (√ scale) · green = visits/mo" : "searches (√ scale)", { c: "#5D6B79", fs: 10.5 });
     b.forEach((o, j) => {
       const gid = grad(svg, "hb" + j, [o.c, [o.c, .35]], true), bx = x(o.l), bw = x.bandwidth();
       tip(svg.append("rect").attr("x", bx).attr("width", bw).attr("y", y(0)).attr("height", 0).attr("rx", 6).attr("fill", gid).style("filter", glow(o.c)).style("cursor", "pointer"),
-        () => `<b>${o.l === "Not ranking" ? "Searches you don't rank for" : "You rank " + o.l}</b>${tr("Searches", fmt(o.n))}${tr("Your visits / mo", fmt(o.now), P.green)}${tr("Market clicks / mo", fmt(o.mk))}${o.pot ? tr("On the table", "+" + fmt(o.pot) + " visits", P.gold) : ""}${o.xs.length ? `<div style="margin-top:6px;color:#9ea3d4;font-size:12px">${o.xs.slice().sort((a, z) => z.v - a.v).slice(0, 3).map(x => esc(cut(x.k, 34))).join("<br>")}</div>` : ""}`)
+        () => `<b>${o.l === "Not ranking" ? "Searches you don't rank for" : "You rank " + o.l}</b>${tr("Searches", fmt(o.n))}${tr("Your visits / mo", fmt(o.now), P.green)}${tr("Market clicks / mo", fmt(o.mk))}${o.pot ? tr("On the table", "+" + fmt(o.pot) + " visits", P.gold) : ""}${o.xs.length ? `<div style="margin-top:6px;color:#6B7A8C;font-size:12px">${o.xs.slice().sort((a, z) => z.v - a.v).slice(0, 3).map(x => esc(cut(x.k, 34))).join("<br>")}</div>` : ""}`)
         .transition().duration(1000).delay(j * 110).ease(d3.easeBackOut.overshoot(1.1)).attr("y", y(o.n)).attr("height", Math.max(0, y(0) - y(o.n)));
       T(svg, bx + bw / 2, y(o.n) - 7, fmt(o.n), { c: o.c, fs: 12.5, fw: 800, ff: SANS, a: "middle" }).attr("opacity", 0).transition().delay(800 + j * 110).attr("opacity", 1);
       const nar = W < 560;
-      T(svg, bx + bw / 2, H - m.b + 16, nar ? o.l.replace("Not ranking", "None").replace("#51-100", "#51+") : o.l, { c: "#d6d9ff", fs: nar ? 9 : 10.5, fw: 600, a: "middle" });
-      T(svg, bx + bw / 2, H - m.b + 30, short(o.now) + (nar ? "" : " visits"), { c: o.now > 0 ? P.green : "#5d6296", fs: 9.5, a: "middle" });
+      T(svg, bx + bw / 2, H - m.b + 16, nar ? o.l.replace("Not ranking", "None").replace("#51-100", "#51+") : o.l, { c: "#1E3550", fs: nar ? 9 : 10.5, fw: 600, a: "middle" });
+      T(svg, bx + bw / 2, H - m.b + 30, short(o.now) + (nar ? "" : " visits"), { c: o.now > 0 ? P.green : "#8A97A6", fs: 9.5, a: "middle" });
     });
   }
   function storyHist() {
@@ -370,9 +372,9 @@
     const x = d3.scaleLinear().domain([0, d3.max(ps, p => p.v) || 1]).range([0, W - m.l - m.r]);
     ps.forEach((p, j) => {
       const yy = 6 + j * rowH, c = RAINBOW[j % RAINBOW.length], path = p.u.replace(/^https?:\/\/[^/]+/, "") || "/";
-      T(svg, m.l - 10, yy + 15, cut(path, Math.floor(lw / 6.6)), { c: "#e6e8ff", fs: 11.5, fw: 600, a: "end" });
-      T(svg, m.l - 10, yy + 28, `${plural(p.n, "keyword")} · best #${p.best}`, { c: "#6a70a8", fs: 9.5, a: "end" });
-      svg.append("rect").attr("x", m.l).attr("y", yy + 6).attr("width", W - m.l - m.r).attr("height", 20).attr("rx", 6).attr("fill", "#141633");
+      T(svg, m.l - 10, yy + 15, cut(path, Math.floor(lw / 6.6)), { c: "#0B2545", fs: 11.5, fw: 600, a: "end" });
+      T(svg, m.l - 10, yy + 28, `${plural(p.n, "keyword")} · best #${p.best}`, { c: "#7D8A9B", fs: 9.5, a: "end" });
+      svg.append("rect").attr("x", m.l).attr("y", yy + 6).attr("width", W - m.l - m.r).attr("height", 20).attr("rx", 6).attr("fill", "#EEF3F9");
       tip(svg.append("rect").attr("x", m.l).attr("y", yy + 6).attr("height", 20).attr("rx", 6).attr("width", 0).attr("fill", grad(svg, "pg" + j, [c, [c, .55]])).style("filter", glow(c)), () => `<b>${esc(path)}</b>${tr("Est. visits / mo", fmt(p.v), P.green)}${tr("Keywords ranking", fmt(p.n))}${tr("Best position", "#" + p.best)}${p.top ? tr("Biggest keyword", esc(cut(p.top.k, 30))) : ""}`)
         .transition().duration(1100).delay(j * 90).attr("width", Math.max(3, x(p.v)));
       T(svg, W - m.r + 8, yy + 20, fmt(p.v), { c, fs: 12.5, fw: 800, ff: SANS });
@@ -408,16 +410,16 @@
     const xs = x(30), ys = y(Math.max(D.medV, y.domain()[0]));
     const qr = { qw: [m.l, m.t, xs - m.l, ys - m.t], bb: [xs, m.t, W - m.r - xs, ys - m.t], lt: [m.l, ys, xs - m.l, H - m.b - ys], hl: [xs, ys, W - m.r - xs, H - m.b - ys] };
     Object.entries(qr).forEach(([k, a]) => { svg.append("rect").attr("x", a[0]).attr("y", a[1]).attr("width", a[2]).attr("height", a[3]).attr("fill", QD[k].c).attr("opacity", .055).attr("class", "qbg q-" + k); });
-    y.ticks(5).filter(t => String(t)[0] === "1").forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1d2044"); T(svg, m.l - 7, y(t) + 4, short(t), { c: "#6a70a8", fs: 10, a: "end" }); });
-    [0, 20, 40, 60, 80, 100].forEach(t => T(svg, x(t), H - m.b + 16, t, { c: "#6a70a8", fs: 10, a: "middle" }));
-    T(svg, (m.l + W - m.r) / 2, H - 6, "keyword difficulty (0 easy → 100 brutal)", { c: "#7a7fae", fs: 10.5, a: "middle" });
-    T(svg, 4, 11, "↑ searches / mo", { c: "#7a7fae", fs: 10.5 });
-    svg.append("line").attr("x1", xs).attr("x2", xs).attr("y1", m.t).attr("y2", H - m.b).attr("stroke", "#5d6296").attr("stroke-dasharray", "4 4");
-    svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", ys).attr("y2", ys).attr("stroke", "#5d6296").attr("stroke-dasharray", "4 4");
+    y.ticks(5).filter(t => String(t)[0] === "1").forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#E3EAF2"); T(svg, m.l - 7, y(t) + 4, short(t), { c: "#7D8A9B", fs: 10, a: "end" }); });
+    [0, 20, 40, 60, 80, 100].forEach(t => T(svg, x(t), H - m.b + 16, t, { c: "#7D8A9B", fs: 10, a: "middle" }));
+    T(svg, (m.l + W - m.r) / 2, H - 6, "keyword difficulty (0 easy → 100 brutal)", { c: "#5D6B79", fs: 10.5, a: "middle" });
+    T(svg, 4, 11, "↑ searches / mo", { c: "#5D6B79", fs: 10.5 });
+    svg.append("line").attr("x1", xs).attr("x2", xs).attr("y1", m.t).attr("y2", H - m.b).attr("stroke", "#8A97A6").attr("stroke-dasharray", "4 4");
+    svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", ys).attr("y2", ys).attr("stroke", "#8A97A6").attr("stroke-dasharray", "4 4");
     const ql = (k, xx, yy, a) => T(svg, xx, yy, QD[k].n.toUpperCase(), { c: QD[k].c, fs: W < 600 ? 10 : 12, fw: 800, a }).attr("opacity", .85);
     ql("qw", m.l + 8, m.t + 16, "start"); ql("bb", W - m.r - 8, m.t + 16, "end"); ql("lt", m.l + 8, H - m.b - 8, "start"); ql("hl", W - m.r - 8, H - m.b - 8, "end");
     const dots = svg.append("g").selectAll("circle").data(pts).enter().append("circle")
-      .attr("cx", d => x(d.d)).attr("cy", d => y(d.v)).attr("r", 0).attr("fill", d => ST[d.st]).attr("fill-opacity", .8).attr("stroke", "#0a0b19").attr("stroke-width", .8).style("cursor", "pointer");
+      .attr("cx", d => x(d.d)).attr("cy", d => y(d.v)).attr("r", 0).attr("fill", d => ST[d.st]).attr("fill-opacity", .8).attr("stroke", "#FFFFFF").attr("stroke-width", .8).style("cursor", "pointer");
     dots.transition().duration(700).delay((d, i) => 200 + Math.min(i, 400) * 3).attr("r", d => r(d.pot));
     tip(dots, d => `<b>${esc(d.k)}</b>${tr("Quadrant", QD[D.quad(d)].n, QD[D.quad(d)].c)}${tr("Searches / mo", fmt(d.v))}${tr("Difficulty", d.d)}${tr("You", d.p ? "#" + d.p : "not ranking", ST[d.st])}${d.c ? tr("CPC", "$" + d.c.toFixed(2)) : ""}${tr("On the table", "+" + fmt(d.pot) + " visits" + (d.potVal ? " · " + money(d.potVal) : ""), P.gold)}`);
     const apply = () => { dots.attr("fill-opacity", d => !QF || D.quad(d) === QF ? .85 : .06).attr("stroke-opacity", d => !QF || D.quad(d) === QF ? 1 : .1); svg.selectAll(".qbg").attr("opacity", function () { return !QF || this.classList.contains("q-" + QF) ? (QF ? .14 : .055) : .02; }); document.querySelectorAll("#vzMatrixQ .quad").forEach(e => e.classList.toggle("on", e.dataset.q === QF)); };
@@ -453,15 +455,15 @@
       svg.append("rect").attr("x", x(a)).attr("width", x(b) - x(a)).attr("y", m.t - 8).attr("height", H - m.t).attr("fill", c).attr("opacity", .07);
       T(svg, (x(a) + x(b)) / 2, 14, l.toUpperCase(), { c, fs: 10, fw: 800, a: "middle" });
     });
-    [20, 15, 10, 5, 3, 1].forEach(p => T(svg, x(p), 27, "#" + p, { c: "#6a70a8", fs: 9.5, a: "middle" }));
+    [20, 15, 10, 5, 3, 1].forEach(p => T(svg, x(p), 27, "#" + p, { c: "#7D8A9B", fs: 9.5, a: "middle" }));
     const gl = grad(svg, "lnch", [P.gold, P.lime]);
     xs.forEach((d, j) => {
       const yy = m.t + j * rowH + rowH / 2, g = svg.append("g");
-      T(g, m.l - 8, yy + 4, cut(d.k, Math.floor(m.l / 6.4)), { c: "#e6e8ff", fs: 11.5, fw: 600, a: "end" });
-      g.append("line").attr("x1", x(20)).attr("x2", x(1)).attr("y1", yy).attr("y2", yy).attr("stroke", "#1d2044");
+      T(g, m.l - 8, yy + 4, cut(d.k, Math.floor(m.l / 6.4)), { c: "#0B2545", fs: 11.5, fw: 600, a: "end" });
+      g.append("line").attr("x1", x(20)).attr("x2", x(1)).attr("y1", yy).attr("y2", yy).attr("stroke", "#E3EAF2");
       g.append("rect").attr("x", x(d.p)).attr("y", yy - 2.5).attr("height", 5).attr("rx", 2.5).attr("width", 0).attr("fill", gl).style("filter", glow(P.lime)).transition().duration(1000).delay(250 + j * 80).attr("width", Math.max(0, x(3) - x(d.p)));
       g.append("circle").attr("cx", x(3)).attr("cy", yy).attr("r", 6).attr("fill", "none").attr("stroke", P.lime).attr("stroke-width", 2).style("filter", glow(P.lime)).attr("opacity", 0).transition().delay(1100 + j * 80).attr("opacity", 1);
-      g.append("circle").attr("cx", x(d.p)).attr("cy", yy).attr("r", 6).attr("fill", P.gold).attr("stroke", "#0a0b19").attr("stroke-width", 1.5);
+      g.append("circle").attr("cx", x(d.p)).attr("cy", yy).attr("r", 6).attr("fill", P.gold).attr("stroke", "#FFFFFF").attr("stroke-width", 1.5);
       T(g, x(d.p), yy - 9, "#" + d.p, { c: P.gold, fs: 9.5, fw: 700, a: "middle" });
       T(g, W - m.r + 8, yy + 4, "+" + short(d.pot), { c: P.lime, fs: 12, fw: 800, ff: SANS });
       tip(g.append("rect").attr("x", 0).attr("width", W).attr("y", yy - rowH / 2).attr("height", rowH).attr("fill", "transparent"), () => `<b>${esc(d.k)}</b>${tr("You today", "#" + d.p, P.gold)}${tr("Searches / mo", fmt(d.v))}${d.d != null ? tr("Difficulty", d.d) : ""}${tr("#1 right now", d.lead ? esc(d.lead.d) : "–")}${tr("Gain at the top 3", "+" + fmt(d.pot) + " visits" + (d.potVal ? " · " + money(d.potVal) : ""), P.lime)}`);
@@ -500,16 +502,16 @@
     const st = wfSteps(), { svg, W, H } = svgIn("vzWater", 330), m = { l: 46, r: 8, t: 26, b: 56 };
     let run = 0; st.forEach(s => { if (s.t) { s.a = 0; s.b = s.v; run = s.v; } else { s.a = run; s.b = run + s.v; run = s.b; } });
     const x = d3.scaleBand().domain(st.map((s, i) => i)).range([m.l, W - m.r]).padding(.26), y = d3.scaleLinear().domain([0, d3.max(st, s => s.b) * 1.08 || 1]).nice().range([H - m.b, m.t]);
-    y.ticks(4).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#1d2044"); T(svg, m.l - 7, y(t) + 4, short(t), { c: "#6a70a8", fs: 10, a: "end" }); });
-    T(svg, 4, 12, "visits / month", { c: "#7a7fae", fs: 10.5 });
+    y.ticks(4).forEach(t => { svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "#E3EAF2"); T(svg, m.l - 7, y(t) + 4, short(t), { c: "#7D8A9B", fs: 10, a: "end" }); });
+    T(svg, 4, 12, "visits / month", { c: "#5D6B79", fs: 10.5 });
     st.forEach((s, i) => {
       const bx = x(i), bw = x.bandwidth(), gid = grad(svg, "wf" + i, [s.c, [s.c, s.t ? .7 : .45]], true);
-      if (i < st.length - 1) svg.append("line").attr("x1", bx + bw).attr("x2", x(i + 1)).attr("y1", y(s.b)).attr("y2", y(s.b)).attr("stroke", "#5d6296").attr("stroke-dasharray", "3 3");
+      if (i < st.length - 1) svg.append("line").attr("x1", bx + bw).attr("x2", x(i + 1)).attr("y1", y(s.b)).attr("y2", y(s.b)).attr("stroke", "#8A97A6").attr("stroke-dasharray", "3 3");
       tip(svg.append("rect").attr("x", bx).attr("width", bw).attr("rx", 5).attr("y", y(s.a)).attr("height", 0).attr("fill", gid).style("filter", glow(s.c)), () => `<b>${s.l}</b>${tr(s.t ? "Visits / mo" : "Adds", (s.t ? "" : "+") + fmt(s.v), s.c)}`)
         .transition().duration(800).delay(i * 220).attr("y", y(s.b)).attr("height", Math.max(1.5, y(s.a) - y(s.b)));
       T(svg, bx + bw / 2, y(s.b) - 7, (s.t ? "" : "+") + short(s.v), { c: s.c, fs: 12, fw: 800, ff: SANS, a: "middle" }).attr("opacity", 0).transition().delay(600 + i * 220).attr("opacity", 1);
       const nar = W < 560, words = s.l.split(" "), lines = []; let cur = ""; words.forEach(w => { if (cur && (nar || (cur + " " + w).length > Math.max(6, Math.floor(bw / 6.2)))) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim(); }); lines.push(cur);
-      lines.slice(0, 3).forEach((ln, k) => T(svg, bx + bw / 2, H - m.b + 15 + k * 11.5, ln, { c: s.t ? "#e6e8ff" : "#9ea3d4", fs: nar ? 8.5 : 9.5, fw: s.t ? 700 : 500, a: "middle" }));
+      lines.slice(0, 3).forEach((ln, k) => T(svg, bx + bw / 2, H - m.b + 15 + k * 11.5, ln, { c: s.t ? "#0B2545" : "#6B7A8C", fs: nar ? 8.5 : 9.5, fw: s.t ? 700 : 500, a: "middle" }));
     });
   }
   function storyWater() {
@@ -550,18 +552,18 @@
     const svg = d3.select(box).append("svg").attr("viewBox", `0 0 ${Sz} ${Sz}`).attr("width", Sz).attr("height", Sz).style("display", "block").style("margin", "0 auto").style("overflow", "visible");
     const g = svg.append("g").attr("transform", `translate(${Sz / 2},${Sz / 2})`), N = ax.length, ang = i => -Math.PI / 2 + i * 2 * Math.PI / N;
     const mx = ax.map(([, k]) => Math.max(1e-9, ...ents.map(e => e[k] || 0)));
-    [.25, .5, .75, 1].forEach(t => g.append("polygon").attr("points", ax.map((a, i) => [Math.cos(ang(i)) * Rd * t, Math.sin(ang(i)) * Rd * t].join(",")).join(" ")).attr("fill", t === 1 ? "rgba(255,255,255,.02)" : "none").attr("stroke", "#262a55"));
+    [.25, .5, .75, 1].forEach(t => g.append("polygon").attr("points", ax.map((a, i) => [Math.cos(ang(i)) * Rd * t, Math.sin(ang(i)) * Rd * t].join(",")).join(" ")).attr("fill", t === 1 ? "rgba(47,128,237,.03)" : "none").attr("stroke", "#E1E8F0"));
     ax.forEach(([l], i) => {
       const c = Math.cos(ang(i)), s = Math.sin(ang(i));
-      g.append("line").attr("x2", c * Rd).attr("y2", s * Rd).attr("stroke", "#262a55");
-      T(g, c * (Rd + 14), s * (Rd + 14) + 4, l, { c: "#d6d9ff", fs: W < 420 ? 9.5 : 10.5, fw: 600, a: Math.abs(c) < .3 ? "middle" : c > 0 ? "start" : "end" });
+      g.append("line").attr("x2", c * Rd).attr("y2", s * Rd).attr("stroke", "#E1E8F0");
+      T(g, c * (Rd + 14), s * (Rd + 14) + 4, l, { c: "#1E3550", fs: W < 420 ? 9.5 : 10.5, fw: 600, a: Math.abs(c) < .3 ? "middle" : c > 0 ? "start" : "end" });
     });
     const pt = (e, i) => { const v = (e[ax[i][1]] || 0) / mx[i]; return [Math.cos(ang(i)) * Rd * v, Math.sin(ang(i)) * Rd * v]; };
     ents.slice().reverse().forEach(e => {
       if (RHIDE.has(e.d)) return;
       const gg = g.append("g").attr("transform", "scale(0)");
       gg.append("polygon").attr("points", ax.map((a, i) => pt(e, i).join(",")).join(" ")).attr("fill", e.c).attr("fill-opacity", e.me ? .22 : .1).attr("stroke", e.c).attr("stroke-width", e.me ? 3 : 2).attr("stroke-linejoin", "round").style("filter", e.me ? glow(e.c) : null);
-      ax.forEach((a, i) => { const [px, py] = pt(e, i); tip(gg.append("circle").attr("cx", px).attr("cy", py).attr("r", 4.5).attr("fill", e.c).attr("stroke", "#0a0b19").style("cursor", "pointer"), () => `<b>${esc(e.d)}</b>${ax.map(([l, k, f]) => tr(l, k === "avgS" ? f(0, e) : f(e[k] || 0), e.c)).join("")}`); });
+      ax.forEach((a, i) => { const [px, py] = pt(e, i); tip(gg.append("circle").attr("cx", px).attr("cy", py).attr("r", 4.5).attr("fill", e.c).attr("stroke", "#FFFFFF").style("cursor", "pointer"), () => `<b>${esc(e.d)}</b>${ax.map(([l, k, f]) => tr(l, k === "avgS" ? f(0, e) : f(e[k] || 0), e.c)).join("")}`); });
       gg.transition().duration(1100).delay(e.me ? 500 : 150).ease(d3.easeBackOut.overshoot(1.2)).attr("transform", "scale(1)");
     });
     const lg = document.createElement("div"); lg.className = "vlg center"; box.appendChild(lg);
@@ -602,22 +604,22 @@
     const W = Math.max(avail, lw + cw * C.length + 10), H = hh + Tp.length * chh + 8;
     const { svg } = svgIn("vzHeat", H, W > avail ? W : null);
     const mxS = d3.max(cell.flat(), z => z.s) || 1;
-    const col = d3.scaleSequentialSqrt(d3.interpolateRgbBasis(["#15173a", "#33307a", "#8a3fd1", "#ff4fa8", "#ff8a3d", "#ffe14d"])).domain([0, mxS]);
+    const col = d3.scaleSequentialSqrt(d3.interpolateRgbBasis(["#F1F5FA", "#BFE3FF", "#8a3fd1", "#FF3D8B", "#FF6A13", "#FFC400"])).domain([0, mxS]);
     C.forEach((c, j) => {
       const cx = lw + j * cw + cw / 2;
       svg.append("image").attr("href", fav(c.d)).attr("x", cx - 8).attr("y", hh - 24).attr("width", 16).attr("height", 16);
-      T(svg, cx - 2, hh - 32, cut(c.d, mob ? 14 : 20), { c: c.me ? P.green : "#d6d9ff", fs: 10.5, fw: c.me ? 800 : 600 }).attr("transform", `rotate(-38,${cx - 2},${hh - 32})`);
+      T(svg, cx - 2, hh - 32, cut(c.d, mob ? 14 : 20), { c: c.me ? P.green : "#1E3550", fs: 10.5, fw: c.me ? 800 : 600 }).attr("transform", `rotate(-38,${cx - 2},${hh - 32})`);
     });
     Tp.forEach((t, i) => {
       const yy = hh + i * chh;
-      T(svg, lw - 10, yy + chh / 2 - 1, cut(t.name, mob ? 15 : 26), { c: "#e6e8ff", fs: 11.5, fw: 600, a: "end" }).style("text-transform", "capitalize");
-      T(svg, lw - 10, yy + chh / 2 + 11, short(t.clicks) + " clicks", { c: "#6a70a8", fs: 9, a: "end" });
+      T(svg, lw - 10, yy + chh / 2 - 1, cut(t.name, mob ? 15 : 26), { c: "#0B2545", fs: 11.5, fw: 600, a: "end" }).style("text-transform", "capitalize");
+      T(svg, lw - 10, yy + chh / 2 + 11, short(t.clicks) + " clicks", { c: "#7D8A9B", fs: 9, a: "end" });
       cell[i].forEach((z, j) => {
-        const x0 = lw + j * cw + 2, r = svg.append("rect").attr("x", x0).attr("y", yy + 2).attr("width", cw - 4).attr("height", chh - 4).attr("rx", 7).attr("fill", "#15173a").attr("stroke", z.c.me ? P.green : "none").attr("stroke-width", z.c.me ? 1.5 : 0).style("cursor", "pointer");
+        const x0 = lw + j * cw + 2, r = svg.append("rect").attr("x", x0).attr("y", yy + 2).attr("width", cw - 4).attr("height", chh - 4).attr("rx", 7).attr("fill", "#F1F5FA").attr("stroke", z.c.me ? P.green : "none").attr("stroke-width", z.c.me ? 1.5 : 0).style("cursor", "pointer");
         r.transition().duration(700).delay(i * 60 + j * 40).attr("fill", col(z.s));
         tip(r, () => `<b style="text-transform:capitalize">${esc(t.name)}</b>${tr("Site", esc(z.c.d), z.c.me ? P.green : null)}${tr("Clicks / mo", fmt(z.v))}${tr("Share of this topic", pc(z.s), P.gold)}${tr("Topic size", fmt(t.clicks) + " clicks")}`);
         const lum = d3.hsl(col(z.s)).l;
-        T(svg, x0 + (cw - 4) / 2, yy + chh / 2 + 4, z.s >= .0005 ? pc(z.s) : "·", { c: lum > .6 ? "#120a1f" : "#e6e8ff", fs: 11, fw: 700, a: "middle" }).style("pointer-events", "none").attr("opacity", 0).transition().delay(500 + i * 60 + j * 40).attr("opacity", 1);
+        T(svg, x0 + (cw - 4) / 2, yy + chh / 2 + 4, z.s >= .0005 ? pc(z.s) : "·", { c: lum > .6 ? "#0B2545" : "#FFFFFF", fs: 11, fw: 700, a: "middle" }).style("pointer-events", "none").attr("opacity", 0).transition().delay(500 + i * 60 + j * 40).attr("opacity", 1);
       });
     });
     const sc = document.createElement("div"); sc.className = "heatscale"; box.appendChild(sc);
@@ -651,7 +653,7 @@
     const Tp = topics.filter(t => t.clicks > 0).slice().sort((a, b) => b.clicks - a.clicks);
     const left = Tp.slice(0, 7).map((t, j) => ({ name: t.name, ts: [t], c: RAINBOW[j] }));
     if (Tp.length > 7) left.push({ name: "other topics", ts: Tp.slice(7), c: P.slate });
-    const right = [{ name: SCAN.domain, me: true, c: P.green }, ...comps.slice(0, 5).map((c, j) => ({ name: c.d, comp: c, c: SITEC[j] })), { name: "everyone else", rest: true, c: "#4a4f8a" }];
+    const right = [{ name: SCAN.domain, me: true, c: P.green }, ...comps.slice(0, 5).map((c, j) => ({ name: c.d, comp: c, c: SITEC[j] })), { name: "everyone else", rest: true, c: "#B8C6D6" }];
     const flows = [];
     left.forEach((L, li) => { const tot = sum(L.ts, t => t.clicks); let named = 0; right.forEach((Rn, ri) => { let v; if (Rn.me) v = sum(L.ts, t => t.yours); else if (Rn.rest) v = Math.max(0, tot - named); else v = sum(L.ts, t => topicComp(Rn.comp, t)); if (!Rn.rest) named += v; if (v > 0) flows.push({ li, ri, v }); }); });
     return { left, right, flows };
@@ -674,7 +676,7 @@
     const xa = x0 + nw, xb = x1, xm = (xa + xb) / 2;
     const links = svg.append("g").selectAll("path").data(flows).enter().append("path")
       .attr("d", f => `M${xa},${f.ya}C${xm},${f.ya} ${xm},${f.yb} ${xb},${f.yb}L${xb},${f.yb + f.h}C${xm},${f.yb + f.h} ${xm},${f.ya + f.h} ${xa},${f.ya + f.h}Z`)
-      .attr("fill", f => right[f.ri].c).attr("opacity", 0).style("mix-blend-mode", "screen").style("cursor", "pointer");
+      .attr("fill", f => right[f.ri].c).attr("opacity", 0).style("mix-blend-mode", "multiply").style("cursor", "pointer");
     const base = f => right[f.ri].rest ? .2 : .5;
     links.transition().duration(1100).delay(f => 200 + f.li * 70).attr("opacity", base);
     tip(links, f => `<b style="text-transform:capitalize">${esc(left[f.li].name)} → ${esc(right[f.ri].name)}</b>${tr("Clicks / mo", fmt(f.v), right[f.ri].c)}${tr("Share of this topic", pc(f.v / sum(left[f.li].ts, t => t.clicks)))}`);
@@ -683,13 +685,13 @@
     left.forEach((L, i) => {
       const g = svg.append("g").style("cursor", "pointer").on("pointerenter", () => hl(f => f.li === i)).on("pointerleave", reset);
       g.append("rect").attr("x", x0).attr("y", L.y0).attr("width", nw).attr("height", L.h).attr("rx", 3).attr("fill", L.c).style("filter", glow(L.c));
-      T(g, x0 - 8, L.y0 + L.h / 2 + 1, cut(L.name, mob ? 13 : 22), { c: "#e6e8ff", fs: mob ? 10 : 11.5, fw: 600, a: "end" }).style("text-transform", "capitalize");
+      T(g, x0 - 8, L.y0 + L.h / 2 + 1, cut(L.name, mob ? 13 : 22), { c: "#0B2545", fs: mob ? 10 : 11.5, fw: 600, a: "end" }).style("text-transform", "capitalize");
       T(g, x0 - 8, L.y0 + L.h / 2 + 13, short(L.v), { c: L.c, fs: 9.5, fw: 700, a: "end" });
     });
     right.forEach((Rn, i) => {
       const g = svg.append("g").style("cursor", "pointer").on("pointerenter", () => hl(f => f.ri === i)).on("pointerleave", reset);
       g.append("rect").attr("x", x1).attr("y", Rn.y0).attr("width", nw).attr("height", Rn.h).attr("rx", 3).attr("fill", Rn.c).style("filter", glow(Rn.c));
-      T(g, x1 + nw + 8, Rn.y0 + Rn.h / 2 + 1, cut(Rn.name, mob ? 12 : 22) + (Rn.me && !mob ? " (you)" : ""), { c: Rn.me ? P.green : "#e6e8ff", fs: mob ? 10 : 11.5, fw: Rn.me ? 800 : 600 });
+      T(g, x1 + nw + 8, Rn.y0 + Rn.h / 2 + 1, cut(Rn.name, mob ? 12 : 22) + (Rn.me && !mob ? " (you)" : ""), { c: Rn.me ? P.green : "#0B2545", fs: mob ? 10 : 11.5, fw: Rn.me ? 800 : 600 });
       T(g, x1 + nw + 8, Rn.y0 + Rn.h / 2 + 13, short(Rn.v) + " · " + pc(Rn.v / total), { c: Rn.c, fs: 9.5, fw: 700 });
     });
     document.querySelectorAll("#skMode button").forEach(b => { b.classList.toggle("on", (b.dataset.v === "all") === SK_ALL); b.onclick = () => { SK_ALL = b.dataset.v === "all"; drawSankey(); }; });
@@ -731,7 +733,7 @@
       const c = tc(g1), w = g1.x1 - g1.x0;
       svg.append("rect").attr("x", g1.x0).attr("y", g1.y0).attr("width", w).attr("height", g1.y1 - g1.y0).attr("rx", 6).attr("fill", c).attr("fill-opacity", .1).attr("stroke", c).attr("stroke-opacity", .7).style("cursor", focus ? "default" : "zoom-in").on("click", () => { if (!focus) { TM = g1.data.name; drawTree(); } });
       if (w > 46) T(svg, g1.x0 + 7, g1.y0 + 15, cut(g1.data.name.toUpperCase(), Math.floor((w - 14) / 7.4)), { c, fs: 10.5, fw: 800 });
-      if (w > 170) T(svg, g1.x1 - 7, g1.y0 + 15, hasVal ? money(g1.value) : short(g1.value) + " clicks", { c: "#d6d9ff", fs: 10, a: "end" });
+      if (w > 170) T(svg, g1.x1 - 7, g1.y0 + 15, hasVal ? money(g1.value) : short(g1.value) + " clicks", { c: "#1E3550", fs: 10, a: "end" });
     });
     const lv = svg.append("g").selectAll("g").data(root.leaves()).enter().append("g").attr("transform", d => `translate(${d.x0},${d.y0})`).style("cursor", focus ? "default" : "zoom-in");
     lv.append("rect").attr("width", d => Math.max(0, d.x1 - d.x0)).attr("height", d => Math.max(0, d.y1 - d.y0)).attr("rx", 3).attr("fill", d => ST[d.data.x.st]).attr("opacity", 0)
@@ -739,8 +741,8 @@
     lv.each(function (d) {
       const w = d.x1 - d.x0, h = d.y1 - d.y0; if (w < 64 || h < 26) return;
       const g = d3.select(this), x = d.data.x;
-      T(g, 5, 14, cut(x.k, Math.floor((w - 8) / 6.3)), { c: "#0b0a1f", fs: 10.5, fw: 700, ff: SANS });
-      if (h > 38) T(g, 5, 27, (hasVal ? money(val(x)) : fmt(x.mk) + " clicks") + (x.p ? " · #" + x.p : ""), { c: "#0b0a1f", fs: 9.5, fw: 600 }).attr("opacity", .8);
+      T(g, 5, 14, cut(x.k, Math.floor((w - 8) / 6.3)), { c: "#FFFFFF", fs: 10.5, fw: 700, ff: SANS });
+      if (h > 38) T(g, 5, 27, (hasVal ? money(val(x)) : fmt(x.mk) + " clicks") + (x.p ? " · #" + x.p : ""), { c: "#FFFFFF", fs: 9.5, fw: 600 }).attr("opacity", .8);
     });
     tip(lv, d => { const x = d.data.x; return `<b>${esc(x.k)}</b>${tr("Topic", esc(x.topic || ""))}${tr("Searches / mo", fmt(x.v))}${tr("Market clicks / mo", fmt(x.mk))}${hasVal ? tr("Click value / mo", money(x.mkVal)) : ""}${tr("You", x.p ? "#" + x.p : "not ranking", ST[x.st])}${x.pot ? tr("On the table", "+" + fmt(x.pot) + " visits", P.gold) : ""}`; });
     lv.on("click", (e, d) => { if (!focus) { TM = d.parent.data.name; drawTree(); } });
@@ -755,7 +757,7 @@
     const big = ts[0], pinkest = ts.slice(0, 8).sort((a, b) => b.pink * b.v - a.pink * a.v)[0], greenest = ts.slice().sort((a, b) => b.green - a.green)[0], allPink = sum(it.filter(x => x.st === "none"), val) / tot;
     return {
       c: P.teal,
-      read: `The whole market as a map. Each outlined block is a topic group and each tile inside it is one search, sized by ${hasVal ? "what its clicks are worth at ad prices" : "the clicks it gets each month"}. Tile color shows where you rank, using the same colors as the rest of the report: green and cyan are yours, gold is page two, violet is deeper, and pink is searches where you don't appear. Tap any block to zoom into that topic.`,
+      read: `The whole market as a map. Each outlined block is a topic group and each tile inside it is one search, sized by ${hasVal ? "what its clicks are worth at ad prices" : "the clicks it gets each month"}. Tile color shows where you rank, using the same colors as the rest of the report: green and blue are yours, amber is page two, purple is deeper, and pink is searches where you don't appear. Tap any block to zoom into that topic.`,
       say: [
         `The biggest block is ${B(esc(big.t.name), P.teal)}, holding ${B(pc(big.v / tot), P.teal)} of the market's ${hasVal ? "value" : "clicks"} on its own.`,
         `Overall, ${B(pc(allPink), P.pink)} of the map is pink. ${allPink > .7 ? "That's a lot of territory nobody has claimed for you yet, and it's the clearest picture of how much room there is to grow." : allPink > .4 ? "There's a healthy mix: you have a foothold, with plenty of unclaimed ground around it." : "Most of the map already has your color on it, so growth now means climbing higher, not spreading wider."}`,
@@ -838,9 +840,9 @@
     const tt = Object.entries(tops).sort((a, b) => b[1] - a[1])[0];
     return {
       c: P.cyan,
-      read: `Every bubble is one real search, grouped into topic clusters and sized by ${"visits or click value (toggle above)"}. Bright filled bubbles are searches you rank for; the dark ones with a gold rim are searches where you don't appear. Use the filters to show only untapped searches or only yours, and hover any bubble for details.`,
+      read: `Every bubble is one real search, grouped into topic clusters and sized by ${"visits or click value (toggle above)"}. Each cluster has its own color. Solid bubbles with a colored ring are searches you rank for (green ring = top 3, blue = page one, amber = page two, purple = deeper); soft bubbles with a dotted edge are searches where you don't appear. Use the filters to show only untapped searches or only yours, and hover any bubble for details.`,
       say: [
-        `Of ${fmt(it.length)} searches, ${B(fmt(mine), P.green)} put you on page one, ${B(fmt(cnt("close")), P.gold)} sit on page two, ${B(fmt(cnt("far")), P.violet)} are deeper, and ${B(fmt(cnt("none")), P.pink)} are untapped. Flip the filter to "Untapped" and watch how much of the universe lights up: that's the territory still available.`,
+        `Of ${fmt(it.length)} searches, ${B(fmt(mine), P.green)} put you on page one, ${B(fmt(cnt("close")), P.gold)} sit on page two, ${B(fmt(cnt("far")), P.violet)} are deeper, and ${B(fmt(cnt("none")), P.pink)} are untapped. Flip the filter to "Untapped" and watch the soft bubbles start to pulse: that's the territory still available.`,
         bigMiss ? `The largest dark bubble is ${q(bigMiss.k)}, with about ${fmt(bigMiss.mk)} clicks a month going entirely to other sites. ${tt ? `The cluster with the most untapped bubbles is ${B(esc(tt[0]), P.cyan)} (${plural(tt[1], "search", "searches")}).` : ""}` : null,
       ],
     };
@@ -924,6 +926,7 @@
     if (!SCAN || !R) return;
     D = derive(); drawn = new Set(); QF = null; TM = null; RHIDE = new Set(); SK_ALL = false;
     byId("rowPages").style.display = pageData().length ? "" : "none";
+    ticker(); reveal();
     writeStories();
     if (IO) IO.disconnect();
     if (!("IntersectionObserver" in window)) { CH.forEach(c => { drawn.add(c[0]); drawOne(c[0]); }); return; }
@@ -932,6 +935,27 @@
     chapNav();
   }
   function drawAll() { if (!D) return; CH.forEach(c => { if (!drawn.has(c[0])) { drawn.add(c[0]); drawOne(c[0]); } }); }
+
+  /* ---------- opportunity ticker + scroll reveal ---------- */
+  function ticker() {
+    const tk = byId("tk"), box = byId("ticker"); if (!tk || !box) return;
+    const tn = {}; D.topics.forEach((t, j) => tn[t.name] = RAINBOW[j % RAINBOW.length]);
+    const xs = D.it.filter(x => x.pot > 0).sort((a, b) => b.pot - a.pot).slice(0, 26);
+    if (xs.length < 4) { box.style.display = "none"; byId("tkLab").textContent = ""; return; }
+    const pill = x => `<span class="pill" style="--c:${tn[x.topic] || P.blue}"><i></i>${esc(x.k)}<b>+${short(x.pot)}/mo</b></span>`;
+    const one = xs.map(pill).join("");
+    tk.innerHTML = one + one; tk.style.animationDuration = Math.max(30, xs.length * 3.2) + "s";
+    box.style.display = ""; byId("tkLab").textContent = "Biggest openings in this market · hover to pause";
+  }
+  let RIO;
+  function reveal() {
+    const els = document.querySelectorAll("#results .vz, #results .story, #results .kpi, #results .ladder, #results .pie, #results .topic, #results .ovc, #results .serp, #results .comp, #results .donut, #results .proj, #results .ctrc, #results .brk");
+    if (!("IntersectionObserver" in window)) return;
+    if (RIO) RIO.disconnect();
+    RIO = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); RIO.unobserve(e.target); } }), { threshold: .06 });
+    els.forEach((el, i) => { el.classList.add("rv"); el.style.transitionDelay = (i % 3) * 70 + "ms"; if (el.getBoundingClientRect().top < innerHeight) el.classList.add("in"); else RIO.observe(el); });
+  }
+  addEventListener("beforeprint", () => document.querySelectorAll(".rv").forEach(e => e.classList.add("in")));
 
   /* ---------- chapter nav ---------- */
   let NIO;
