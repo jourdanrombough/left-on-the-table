@@ -61,6 +61,21 @@ for anyone self-hosting it; v2 runs entirely in the browser with your own key.
 
 Run a scan, tap **Download data**, drop the `.json` into `examples/` and add a line for it to `examples/index.json`.
 
+
+## Site Intel Report (new, `/intel/`)
+
+A fork of the scanner that drops every dollar and click-value figure and turns the scan into a full intel report on any site, yours or a competitor's:
+
+- Intel scorecard: six graded dimensions (search visibility, authority, content breadth, technical health, AI visibility, momentum)
+- Domain profile: Whois age timeline, detected tech stack, backlink profile (tiles, TLD rose, link mix)
+- Trajectory: 24 months of traffic and keyword history, monthly gains vs losses, the full ranking funnel
+- AI: does ChatGPT or Claude name the site when asked buyer questions, which brands they name instead, plus an AI-written SWOT brief
+- SERP features around the site's keywords (AI Overviews, People also ask and more)
+- Optional site crawl (checkbox on the form): on-page score, status codes, every issue by severity, speed vs content scatter, worst pages
+- Every chart comes with a written explanation of what it says
+
+Live: https://optimizationtheory.com/tools/site-intel/ · GitHub Pages: open `/intel/` and add your own DataForSEO key.
+
 ## How the numbers work
 
 | Step | Data |
