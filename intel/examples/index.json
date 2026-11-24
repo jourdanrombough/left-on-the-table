@@ -1,5 +1,13 @@
 [
  {
+  "file": "examples/vuss-io.json",
+  "domain": "vuss.io",
+  "keyword": "",
+  "location": "United States",
+  "date": "2026-11-24T01:37:34.809Z",
+  "headline": "+2.5K visits/mo possible"
+ },
+ {
   "file": "examples/optimizationtheory-seo-consultant.json",
   "domain": "optimizationtheory.com",
   "keyword": "seo consultant",
@@ -14,13 +22,5 @@
   "location": "New York",
   "date": "2026-10-18T20:49:52.074Z",
   "headline": "+106 visits/mo possible"
- },
- {
-  "file": "examples/vuss-io.json",
-  "domain": "vuss.io",
-  "keyword": "",
-  "location": "United States",
-  "date": "2026-10-18T20:50:41.735Z",
-  "headline": "+3.4K visits/mo possible"
  }
 ]
