@@ -603,13 +603,14 @@ h1 .g{background:linear-gradient(90deg,var(--brand),var(--pink) 35%,var(--orange
 .vz-empty{padding:26px 10px;text-align:center;color:#7D8A9B;font-size:13.5px}
 @media(max-width:1000px){.tiles{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.tiles{grid-template-columns:1fr 1fr}.tile b{font-size:22px}.gcards{grid-template-columns:1fr 1fr}.swot{grid-template-columns:1fr}.aicards{grid-template-columns:1fr}.overall b{font-size:34px}.ctab .kw{max-width:160px}}
+#keyModal .ksteps{margin:0 0 10px;padding-left:20px;font-size:13.5px;line-height:1.5;color:var(--ink,inherit)} #keyModal .ksteps li{margin:0 0 6px} #keyModal .ksteps a{color:var(--cyan)} #keyModal .box{max-height:94vh;overflow:auto} #keyModal .kopt{text-transform:none;letter-spacing:0;font-family:inherit;color:var(--green,#2e9d5b);font-weight:500;margin-left:6px} #keyModal .knote{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="blobs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="top"><div class="wrap">
   <div class="logo" onclick="goHome()"><i>✦</i>Site Intel Report</div>
-  <div class="tr"><span class="chip" id="mode"><span class="dot"></span><span>checking…</span></span><span class="chip" id="bal" style="display:none"></span><a class="btn sm dk navl" href="https://optimizationtheory.com/claudinox-seo-power-agent-pitch-tool/">Pitch deck ▸</a><button class="btn sm" id="keyBtn" style="display:none">Log in to scan</button></div>
+  <div class="tr"><span class="chip" id="mode"><span class="dot"></span><span>checking…</span></span><span class="chip" id="bal" style="display:none"></span><a class="btn sm dk navl" href="https://optimizationtheory.com/claudinox-seo-power-agent-pitch-tool/">Pitch deck ▸</a><button class="btn sm" id="keyBtn" style="display:none">Add API key</button></div>
 </div></div>
 
 <section id="start">
@@ -769,14 +770,14 @@ h1 .g{background:linear-gradient(90deg,var(--brand),var(--pink) 35%,var(--orange
 </div></section>
 
 <div id="tip"></div>
-<div class="modal" id="keyModal" style="display:none" onclick="if(event.target===this)closeKey()"><div class="box"><h4>Use your own DataForSEO key</h4><p>Find your <b>API login</b> and <b>API password</b> at <a href="https://app.dataforseo.com/api-access" target="_blank" rel="noopener" style="color:var(--cyan)">app.dataforseo.com → API Access</a>. Calls go straight from your browser to DataForSEO; nothing passes through this site. Your login stays in this browser tab unless you tick remember. A typical scan costs about $0.30 to $0.60 in credits.</p>
-  <div class="f"><label>API login</label><input id="kLogin" autocomplete="off"></div><div class="f"><label>API password</label><input id="kPw" type="password" autocomplete="off"></div>
+<div class="modal" id="keyModal" style="display:none" onclick="if(event.target===this)closeKey()"><div class="box"><h4>Use your own API keys</h4><ol class="ksteps"><li>No account yet? <a href="https://app.dataforseo.com/register" target="_blank" rel="noopener">Sign up at DataForSEO</a>. New accounts come with a small free trial credit.</li><li>Open <a href="https://app.dataforseo.com/api-access" target="_blank" rel="noopener">API Access</a> and copy your <b>API login</b> and <b>API password</b>. The API password is not the one you sign in with. If it's hidden, hit "Send by e-mail" there.</li><li>For the sharpest report, add a <b>Claude API key</b> too. Create one in the <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Claude Console</a> under API keys.</li><li>Paste them below and hit Save. Then type a domain and run the scan.</li></ol><p class="knote">Calls go straight from your browser to DataForSEO and Claude. Nothing passes through this site. Your keys stay in this tab unless you tick remember. No Claude key? The AI steps run through DataForSEO instead, in short snippets on a smaller model. A full report usually costs about $0.60 in credits, a bit more with a state or city picked, and the estimate shows before you run it.</p>
+  <div class="f"><label>DataForSEO API login</label><input id="kLogin" autocomplete="off"></div><div class="f"><label>DataForSEO API password</label><input id="kPw" type="password" autocomplete="off"></div><div class="f"><label>Claude API key <span class="kopt">optional · recommended</span></label><input id="kCk" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
   <label style="font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="kRem"> Remember on this device</label>
   <div id="keyErr" style="font-size:13px;color:var(--gold);min-height:18px;margin-bottom:10px"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn sm" onclick="closeKey()">Cancel</button><button class="btn sm" onclick="clearKey()">Forget key</button><button class="btn sm p" onclick="saveKey()">Save</button></div></div></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center"><a id="kAdmin" href="#" style="display:none;margin-right:auto;font-size:12px;color:var(--muted)">Site owner? Log in</a><button class="btn sm" onclick="closeKey()">Cancel</button><button class="btn sm" onclick="clearKey()">Forget key</button><button class="btn sm p" onclick="saveKey()">Save</button></div></div></div>
 
-<script src="app.js?v=5"></script>
-<script src="insights.js?v=5"></script>
-<script src="intel.js?v=5"></script>
+<script src="app.js?v=6"></script>
+<script src="insights.js?v=6"></script>
+<script src="intel.js?v=6"></script>
 </body>
 </html>

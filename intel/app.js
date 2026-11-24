@@ -82,17 +82,17 @@ async function detectMode() {
   if (location.protocol.startsWith("http")) {
     try { const j = await api("health"); HEALTH = j; if (j.mode === "local") { MODE = "local"; NONCE = j.nonce || ""; CLAUDE = !!(j.keys && j.keys.claude); } else if (j.login) LOGIN_URL = j.login; } catch (e) { }
   }
-  if (MODE !== "local" && getKey()) MODE = "key";
+  if (MODE !== "local" && getKey()) { MODE = "key"; CLAUDE = !!getKey().ck; }
   renderMode();
 }
 function renderMode() {
   const m = $("#mode");
   m.className = "chip " + (MODE === "demo" ? "demo" : "live");
-  m.lastElementChild.textContent = MODE === "local" ? "live" + (CLAUDE ? " · Claude AI" : " · backup AI") : MODE === "key" ? "live · your API key" : "demo · saved scans";
+  m.lastElementChild.textContent = MODE === "local" ? "live" + (CLAUDE ? " · Claude AI" : " · backup AI") : MODE === "key" ? "live · your API key" + (CLAUDE ? " · Claude AI" : "") : "demo · saved scans";
   const kb = $("#keyBtn");
   kb.style.display = MODE === "local" ? "none" : "";
-  if (LOGIN_URL && MODE !== "key") { kb.textContent = "Log in to scan"; kb.onclick = () => location.href = LOGIN_URL; }
-  else { kb.textContent = MODE === "key" ? "API key ✓" : "Add API key"; kb.onclick = openKey; }
+  kb.textContent = MODE === "key" ? "API key ✓" : "Add API key"; kb.onclick = openKey;
+  const ka = $("#kAdmin"); if (ka) { ka.style.display = LOGIN_URL ? "" : "none"; if (LOGIN_URL) ka.href = LOGIN_URL; }
   $("#bal").style.display = "none";
   if (MODE === "local") api("balance").then(j => { if (j.balance != null) { $("#bal").style.display = ""; $("#bal").textContent = "balance $" + j.balance.toFixed(2); } }).catch(() => { });
   if (MODE === "key") keyBalance(getKey()).then(j => { if (j.balance != null) { $("#bal").style.display = ""; $("#bal").textContent = "balance $" + j.balance.toFixed(2); } });
@@ -102,18 +102,20 @@ function renderMode() {
 
 /* ---------- bring-your-own-key mode: calls go straight from this browser to DataForSEO ---------- */
 function getKey() { try { return JSON.parse(sessionStorage.getItem("ltt_key") || localStorage.getItem("ltt_key") || "null"); } catch (e) { return null; } }
-function openKey() { const k = getKey() || {}; $("#kLogin").value = k.login || ""; $("#kPw").value = k.pw || ""; $("#kRem").checked = !!localStorage.getItem("ltt_key"); $("#keyErr").textContent = ""; const m = $("#keyModal"); m.style.display = ""; m.classList.add("on"); setTimeout(() => $("#kLogin").focus(), 50); }
+function openKey() { const k = getKey() || {}; $("#kLogin").value = k.login || ""; $("#kPw").value = k.pw || ""; $("#kCk").value = k.ck || ""; $("#kRem").checked = !!localStorage.getItem("ltt_key"); $("#keyErr").textContent = ""; const m = $("#keyModal"); m.style.display = ""; m.classList.add("on"); setTimeout(() => $("#kLogin").focus(), 50); }
 function closeKey() { const m = $("#keyModal"); m.classList.remove("on"); m.style.display = "none"; }
 async function saveKey() {
   const k = { login: $("#kLogin").value.trim(), pw: $("#kPw").value };
-  if (!k.login || !k.pw) { $("#keyErr").textContent = "Enter both your API login and API password."; return; }
+  const ck = $("#kCk").value.trim(); if (ck) k.ck = ck;
+  if (!k.login || !k.pw) { $("#keyErr").textContent = "Enter both your DataForSEO API login and API password."; return; }
   $("#keyErr").textContent = "Checking with DataForSEO…";
   const b = await keyBalance(k);
   if (b.error) { $("#keyErr").textContent = b.error; return; }
+  if (ck) { $("#keyErr").textContent = "Checking your Claude key…"; const c = await claudeCheck(ck); if (c.error) { $("#keyErr").textContent = c.error; return; } }
   try { sessionStorage.setItem("ltt_key", JSON.stringify(k)); localStorage.removeItem("ltt_key"); if ($("#kRem").checked) localStorage.setItem("ltt_key", JSON.stringify(k)); } catch (e) { }
-  closeKey(); if (MODE !== "local") { MODE = "key"; renderMode(); }
+  closeKey(); if (MODE !== "local") { MODE = "key"; CLAUDE = !!k.ck; renderMode(); }
 }
-function clearKey() { try { sessionStorage.removeItem("ltt_key"); localStorage.removeItem("ltt_key"); } catch (e) { } closeKey(); if (MODE === "key") { MODE = "demo"; renderMode(); } }
+function clearKey() { try { sessionStorage.removeItem("ltt_key"); localStorage.removeItem("ltt_key"); } catch (e) { } closeKey(); if (MODE === "key") { MODE = "demo"; CLAUDE = false; renderMode(); } }
 async function keyBalance(k) {
   try {
     const r = await fetch(API + "appendix/user_data", { headers: { Authorization: "Basic " + btoa(k.login + ":" + k.pw) } });
@@ -162,12 +164,12 @@ async function call(endpoint, task, label, quiet) {
   if (r.status_code !== 20000 && r.status_code !== 20100) { if (!quiet) log("  " + (r.status_message || "error"), "e"); return null; }
   return r.result;
 }
-/* Claude, direct: one named task on the server. Returns the JSON answer, or null to use the backup route. */
+/* Claude, direct: one named task, on the server (site owner) or straight from this browser with the visitor's own Claude key. Returns the JSON answer, or null to use the backup route. */
 async function aiTask(name, data, label, quiet) {
   if (!CLAUDE) return null;
   const t0 = performance.now();
   let r;
-  try { r = await api("ai", { task: name, data, note: SCAN.note || "" }); } catch (e) { r = { ok: false, fallback: true, error: e.message }; }
+  try { r = MODE === "key" ? await claudeDirect(name, data) : await api("ai", { task: name, data, note: SCAN.note || "" }); } catch (e) { r = { ok: false, fallback: true, error: e.message }; }
   const secs = (performance.now() - t0) / 1000;
   SCAN.aiCost = (SCAN.aiCost || 0) + (r.cost || 0);
   SCAN.calls.push({ label, endpoint: "claude:" + name, cost: r.cost || 0, secs: +secs.toFixed(2), cached: !!r.cached, ok: !!r.ok });
@@ -211,7 +213,7 @@ function updateEstimate() {
   const live = MODE !== "demo"; c += CLAUDE ? 0.04 : 0.03;
   const crawl = !!($("#inCrawl") && $("#inCrawl").checked); c += 0.28 + (crawl ? 0.02 : 0);
   const secs = (loc.region ? 120 : 95) + (crawl ? 60 : 0);
-  $("#est").innerHTML = `<span>⏱ <b>about ${secs >= 120 ? Math.round(secs / 60 * 2) / 2 + " minutes" : secs + " seconds"}</b> · AI-guided${crawl ? " · with site crawl" : ""}</span><span>≈ <b>$${c.toFixed(2)}</b> in DataForSEO${CLAUDE ? " + Claude" : ""} credits</span><span>${seeds.length ? `market: <b>${esc(seeds.join(", "))}</b>` : "market: <b>keywords related to the site</b>"}${loc.region ? ` · volumes for <b>${esc(loc.region)}</b>` : ""}</span>` + (live ? "" : `<span style="color:var(--gold)">${LOGIN_URL ? "Log in to run live scans." : "Add your DataForSEO API key (top right) to run live scans."} Or try an example below.</span>`);
+  $("#est").innerHTML = `<span>⏱ <b>about ${secs >= 120 ? Math.round(secs / 60 * 2) / 2 + " minutes" : secs + " seconds"}</b> · AI-guided${crawl ? " · with site crawl" : ""}</span><span>≈ <b>$${c.toFixed(2)}</b> in DataForSEO${CLAUDE ? " + Claude" : ""} credits</span><span>${seeds.length ? `market: <b>${esc(seeds.join(", "))}</b>` : "market: <b>keywords related to the site</b>"}${loc.region ? ` · volumes for <b>${esc(loc.region)}</b>` : ""}</span>` + (live ? "" : `<span style="color:var(--gold)"><a href="#key" onclick="openKey();return false" style="color:inherit;text-decoration:underline">Add your DataForSEO API key</a> to run live scans. Or open an example below.</span>`);
 }
 
 /* ---------- lists ---------- */
@@ -226,7 +228,7 @@ async function loadLists() {
       $("#recent").innerHTML = Array.isArray(rs) && rs.length ? rs.map(s => rowHTML({ ...s, file: "scan:" + s.id })).join("") : `<div class="empty">Scans you run are saved here.</div>`;
     } catch (e) { }
   } else if (MODE === "key") { const h = localHistory(); $("#recent").innerHTML = h.length ? h.map(rowHTML).join("") : `<div class="empty">Scans you run on this device are saved here.</div>`; }
-  else $("#recent").innerHTML = `<div class="empty">${LOGIN_URL ? "Log in to run live scans. They're saved here." : "Add your DataForSEO API key to run live scans. They're saved in this browser."}</div>`;
+  else $("#recent").innerHTML = `<div class="empty">Add your DataForSEO API key to run live scans. They're saved in this browser.</div>`;
   document.querySelectorAll(".scanrow").forEach(el => el.onclick = () => openFile(el.dataset.file, true));
 }
 function rowHTML(s) { return `<div class="scanrow" data-file="${esc(s.file)}"><div><b>${esc(s.domain)}</b><span>${esc(s.keyword || "site keywords")} · ${esc(s.location || "")}${s.date ? " · " + esc(s.date.slice(0, 10)) : ""}</span></div><div class="pl">${s.headline ? esc(s.headline) : "▶ replay"}</div></div>`; }
@@ -247,6 +249,48 @@ async function openFile(file, animate) {
 function showErr(m) { const e = $("#err"); e.textContent = m; e.style.display = m ? "block" : "none"; }
 
 /* ---------- pipeline ---------- */
+/* bring-your-own Claude key: the same named tasks the server runs, sent from this browser straight to Anthropic */
+const AI_PROMPTS = {"brain": {"model": "smart", "max_tokens": 700, "system": "You are a senior SEO strategist. You get a website's domain, the searches it already ranks for, an optional target keyword, the location it serves and an optional note from the SEO running the scan. Work out what the business sells and what its buyers type into Google. Follow the note when one is given. Reply with JSON only, no prose: {\"biz\":\"what the business is, 12 words max\",\"services\":[\"4 to 6 short buyer search phrases (2 to 4 words) for what it sells, in the same market as the target, no place names\"],\"exclude\":[\"up to 6 themes that look related but are not customers, for example jobs, DIY or other locations\"],\"audience\":\"who buys, 10 words max\"}"}, "filter": {"model": "fast", "max_tokens": 6000, "system": "You check Google searches for an SEO market analysis. Keep a search if the person typing it could become a customer of this business or is researching what it sells. Drop it if it is: geo = clearly about a different city, state or country than the area served; job = jobs, salary, school or careers; brand = a specific other company, person or product name; off = an unrelated meaning or audience. Follow the note from the SEO when one is given. When unsure, keep it. Reply with JSON only, listing only the dropped ids: {\"drop\":{\"<id>\":\"geo|job|brand|off\"}}"}, "vet": {"model": "fast", "max_tokens": 2500, "system": "Classify each domain that ranks in this market against the business. direct = the same kind of business competing for the same customers; directory = listings, reviews, marketplaces or lead generation; media = news, information, government, wiki, video or forum; other = anything else. Follow the note from the SEO when one is given. Reply with JSON only: {\"t\":{\"<domain>\":\"direct|directory|media|other\"}}"}, "summary": {"model": "smart", "max_tokens": 600, "system": "You are an SEO strategist explaining a search traffic analysis to a business owner during a call. Use only the numbers given and round them. Plain words, no jargon, no hype, no em dashes. Follow the note from the SEO when one is given. Reply with JSON only: {\"takeaway\":\"2 short sentences\",\"moves\":[\"3 concrete next actions, 14 words max each\"]}"}, "questions": {"model": "fast", "max_tokens": 600, "system": "Write the 5 questions a potential customer of this business would ask an AI assistant such as ChatGPT when looking for this kind of provider. Mention the town or state when the business serves a local area. Write them the way a real person types. Reply with JSON only: {\"questions\":[\"...\"]}"}, "intel": {"model": "smart", "max_tokens": 900, "system": "You are a senior SEO analyst writing the executive brief for a site intel report. You get one website's measured search data as JSON (visibility, market share, rankings, backlinks, domain age, traffic trend, AI assistant mentions, crawl health, the leading competitor). Write a SWOT grounded only in those numbers: cite a number in most items, never invent data, never mention money, cost or ad value. Plain words, no em dashes, each item 16 words or fewer. Reply with JSON only: {\"verdict\":\"one sentence, 30 words max, the single most important takeaway\",\"s\":[\"3 strengths\"],\"w\":[\"3 weaknesses\"],\"o\":[\"3 opportunities\"],\"t\":[\"3 threats\"]}"}};
+const CK_MODELS = { fast: "claude-haiku-5-5", smart: "claude-sonnet-5-5" }, CK_PRICE = { fast: [1, 5], smart: [3, 15] };
+const CK_HEAD = ck => ({ "content-type": "application/json", "x-api-key": ck, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" });
+function jsonFrom(txt) {
+  txt = String(txt || "").replace(/```(?:json)?/gi, ""); const a = txt.indexOf("{"); if (a < 0) return null; let end = txt.length;
+  for (let t = 0; t < 6; t++) { const b = txt.lastIndexOf("}", end - 1); if (b < a) break; const s = txt.slice(a, b + 1);
+    try { return JSON.parse(s); } catch (e) { try { return JSON.parse(s.replace(/,\s*([}\]])/g, "$1")); } catch (e2) { } } end = b; }
+  return null;
+}
+async function claudeDirect(name, data) {
+  const t = AI_PROMPTS[name], k = getKey();
+  if (!t || !k || !k.ck) return { ok: false, fallback: true, error: "No Claude key" };
+  const note = String(SCAN.note || "").trim().slice(0, 600);
+  const user = (note ? "Note from the SEO running this: " + note + "\n\n" : "") + "Data:\n" + JSON.stringify(data);
+  const model = CK_MODELS[t.model] || CK_MODELS.fast, [pi, po] = CK_PRICE[t.model] || CK_PRICE.fast;
+  let err = "", cost = 0;
+  for (let i = 0; i < 2; i++) {
+    let res, j;
+    try { res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: CK_HEAD(k.ck), body: JSON.stringify({ model, max_tokens: t.max_tokens || 1500, system: t.system, messages: [{ role: "user", content: user }] }) }); j = await res.json().catch(() => null); }
+    catch (e) { err = "Couldn't reach Claude"; await sleep(1200); continue; }
+    if (res.ok && j) {
+      cost += ((j.usage?.input_tokens || 0) * pi + (j.usage?.output_tokens || 0) * po) / 1e6;
+      const json = jsonFrom((j.content || []).filter(b => b.type === "text").map(b => b.text).join(""));
+      if (json) return { ok: true, json, model, cost };
+      err = "Claude did not return JSON"; continue;
+    }
+    err = j?.error?.message || "HTTP " + res.status;
+    if (![429, 500, 502, 503, 529].includes(res.status)) break;
+    await sleep(1500);
+  }
+  return { ok: false, fallback: true, error: err, cost };
+}
+async function claudeCheck(ck) {
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/models?limit=1", { headers: CK_HEAD(ck) });
+    if (r.ok) return {};
+    const j = await r.json().catch(() => ({}));
+    return { error: r.status === 401 ? "Claude didn't accept that API key. Copy it again from the Claude Console under API keys." : "Claude: " + (j?.error?.message || "HTTP " + r.status) };
+  } catch (e) { return { error: "Couldn't reach Claude to check that key. Try again." }; }
+}
+
 /* ---------- AI (runs through DataForSEO's LLM endpoint: no extra key needed) ---------- */
 /* backup AI route: Claude through DataForSEO's LLM endpoint (500-character prompts, so work goes in small batches) */
 const AI_EP = "ai_optimization/claude/llm_responses/live", AI_MODEL = "claude-haiku-4-5";
@@ -324,7 +368,7 @@ async function startScan() {
   showErr("");
   const domain = normDomain($("#inDomain").value);
   if (!domain || !domain.includes(".")) return showErr("Enter a domain like example.com");
-  if (MODE === "demo") { if (LOGIN_URL && !EMBED) { location.href = LOGIN_URL; return; } openKey(); return showErr("Add your DataForSEO API login to run a live scan. It stays in your browser and calls go straight to DataForSEO."); }
+  if (MODE === "demo") { openKey(); return showErr("Add your DataForSEO API login to run a live scan. It stays in your browser and calls go straight to DataForSEO."); }
   const kw = $("#inKw").value.trim().toLowerCase();
   const seeds = kw ? kw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3) : [];
   SCAN = { v: 4, crawlOn: !!($("#inCrawl") && $("#inCrawl").checked), domain, keyword: seeds.join(", "), seeds, note: ($("#inNote").value || "").trim().slice(0, 600), location: readLocation(), date: new Date().toISOString(), cost: 0, calls: [], log: [], durations: {}, overview: null, ranked: [], universe: [], comps: [], youPos: {}, serps: [], dropped: [] };
@@ -1372,7 +1416,8 @@ detectMode().then(() => {
     if (QS.get("d")) { $("#inDomain").value = QS.get("d"); $("#inKw").value = QS.get("kw") || ""; $("#inCountry").value = QS.get("cc") || "us"; syncRegion(); $("#inRegion").value = QS.get("st") || ""; $("#inNote").value = QS.get("note") || ""; return startScan(); }
   }
   const h = decodeURIComponent(location.hash.slice(1));
-  if (h.startsWith("open=")) openFile(h.slice(5), true);
+  if (h === "key") { history.replaceState(null, "", location.pathname + location.search); if (MODE !== "local") openKey(); }
+  else if (h.startsWith("open=")) openFile(h.slice(5), true);
   else if (h.startsWith("show=")) openFile(h.slice(5), false);
 });
 
