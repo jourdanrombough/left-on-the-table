@@ -1341,12 +1341,13 @@ function downloadScan() {
 /* ---------- start-page floating keyword bubbles ---------- */
 (function () {
   const cv = $("#starfield"), ctx = cv.getContext("2d"); let W, H, D = Math.min(2, devicePixelRatio || 1);
-  const rs = () => { W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); }; rs(); addEventListener("resize", rs);
+  const rs = () => { W = cv.clientWidth; H = cv.clientHeight; cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0); }; rs(); addEventListener("resize", rs); if (window.ResizeObserver) new ResizeObserver(rs).observe(cv);
   const PAL = ["#2F80ED", "#FF3D8B", "#FF6A13", "#1FB462", "#7C4DFF", "#0AA5E6", "#F5A400", "#A2C438", "#D946EF", "#12B5A6"];
   const WORDS = ["near me", "best", "cost", "how to", "reviews", "services", "top rated", "vs", "free", "guide", "pricing", "local"];
   const P = [...Array(42)].map((_, i) => ({ x: Math.random(), y: Math.random(), r: 4 + Math.pow(Math.random(), 2.2) * 34, c: PAL[i % PAL.length], v: .00004 + Math.random() * .00008, ph: Math.random() * 6.28, w: i < WORDS.length ? WORDS[i] : null }));
   (function f(t) {
     if ($("#start").style.display !== "none") {
+      if (cv.clientWidth !== W || cv.clientHeight !== H) rs(); // keep the canvas pixel size matched so circles stay round
       ctx.clearRect(0, 0, W, H);
       P.forEach(p => {
         p.y -= p.v * 16; if (p.y < -0.1) { p.y = 1.1; p.x = Math.random(); }
